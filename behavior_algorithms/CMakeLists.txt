@@ -158,6 +158,7 @@ add_executable(translational_wiggle_pull src/translational_wiggle_pull.cpp)
 add_executable(torsional_wiggle_pull src/torsional_wiggle_pull.cpp)
 
 add_executable(freeze_position_targeting_effort_limiting_z src/freeze_position_targeting_effort_limiting_z.cpp)
+add_executable(ptwl_cartp2p src/ptwl_cartp2p.cpp)
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
@@ -232,6 +233,9 @@ target_link_libraries(quat_to_euler_ang_converter
  )
      target_link_libraries(freeze_position_targeting_effort_limiting_z
    ${catkin_LIBRARIES}
+ )
+  target_link_libraries(ptwl_cartp2p
+  ${catkin_LIBRARIES}
  )
 #############
 ## Install ##
