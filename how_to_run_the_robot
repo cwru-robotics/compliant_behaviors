@@ -46,6 +46,9 @@ Computer:
 	h. Start the GUI from ~/ros_ws/src/manipulative-arm/gui/
 	python skills_gui.py
 
+	i. Start the USB relay controller to control the Gripper  
+	rosrun usb_relay_wsn ros_relay_bridge.py 
+
 
 4. Run whatever skills you need to run
 

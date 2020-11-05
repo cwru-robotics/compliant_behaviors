@@ -121,35 +121,13 @@ class Application(tk.Frame):
         self.force_moment_acc_preset_2.grid(row=1, column=2,
                 sticky=tk.NSEW, pady=5, padx=2)
 
-        # ORIENTATION CONTROL FMA
-        self.force_moment_acc_label_oc = tk.Label(self.orientation_control,
-                text='Limp Mode:',
-                font='Courier 20 bold')
-        self.force_moment_acc_label_oc.grid(row=1, column=0,
-                sticky=tk.NSEW, pady=5, padx=2)
+        # Cartesian point to point inputs here
 
-        self.force_moment_acc_oc = tk.Button(self.orientation_control,
-                text='text in', fg='blue',
-                command=self.force_moment_acc, font='Courier 20 bold')
-        self.force_moment_acc_oc.grid(row=1, column=1, sticky=tk.NSEW,
-                                   pady=5, padx=2)
+        # Text for what it is
 
-        # Preset Value 1
-        self.force_moment_acc_preset_1_oc = tk.Button(self.orientation_control,
-                text='10 sec', fg='blue',
-                command=self.force_moment_acc_preset_1,
-                font='Courier 20 bold')
-        self.force_moment_acc_preset_1_oc.grid(row=1, column=3,
-                sticky=tk.NSEW, pady=5, padx=2)
+        # Input boxes for each 6dof
 
-        # Preset Value 2
-        self.force_moment_acc_preset_2_oc = tk.Button(self.orientation_control,
-                text='5 sec', fg='blue',
-                command=self.force_moment_acc_preset_2,
-                font='Courier 20 bold')
-        self.force_moment_acc_preset_2_oc.grid(row=1, column=2,
-                sticky=tk.NSEW, pady=5, padx=2)
-
+        # Submit button (maybe at the top with the text/title)
 
         # Torsional Wiggle Pull
 
