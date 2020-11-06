@@ -91,54 +91,108 @@ class Application(tk.Frame):
 
         # Force Moment Accomodation (Present in both motion and orientation control tabs)
         # MOTION CONTROL FMA
-        self.force_moment_acc_label = tk.Label(self.motion_control,
+        self.force_moment_acc_label = tk.Label(self.misc_commands,
                 text='Limp Mode:',
                 font='Courier 20 bold')
-        self.force_moment_acc_label.grid(row=1, column=0,
+        self.force_moment_acc_label.grid(row=3, column=0,
                 sticky=tk.NSEW, pady=5, padx=2)
 
-        self.force_moment_acc = tk.Button(self.motion_control,
+        self.force_moment_acc = tk.Button(self.misc_commands,
                 text='text in', fg='blue',
                 command=self.force_moment_acc, font='Courier 20 bold')
-        self.force_moment_acc.grid(row=1, column=1, sticky=tk.NSEW,
+        self.force_moment_acc.grid(row=3, column=1, sticky=tk.NSEW,
                                    pady=5, padx=2)
 
         # Preset Value 1
 
-        self.force_moment_acc_preset_1 = tk.Button(self.motion_control,
+        self.force_moment_acc_preset_1 = tk.Button(self.misc_commands,
                 text='10 sec', fg='blue',
                 command=self.force_moment_acc_preset_1,
                 font='Courier 20 bold')
-        self.force_moment_acc_preset_1.grid(row=1, column=3,
+        self.force_moment_acc_preset_1.grid(row=3, column=3,
                 sticky=tk.NSEW, pady=5, padx=2)
 
         # Preset Value 2
 
-        self.force_moment_acc_preset_2 = tk.Button(self.motion_control,
+        self.force_moment_acc_preset_2 = tk.Button(self.misc_commands,
                 text='5 sec', fg='blue',
                 command=self.force_moment_acc_preset_2,
                 font='Courier 20 bold')
-        self.force_moment_acc_preset_2.grid(row=1, column=2,
+        self.force_moment_acc_preset_2.grid(row=3, column=2,
                 sticky=tk.NSEW, pady=5, padx=2)
 
         # Cart P2P Label and Submission Button
         self.cartp2p_label = tk.Label(self.motion_control,
-                                               text='Cartesian P2PTWL:',
+                                               text='Cart P2PTWL:',
                                                font='Courier 20 bold')
-        self.cartp2p_label.grid(row=2, column=0,
+        self.cartp2p_label.grid(row=2, column=2,
                                          sticky=tk.NSEW, pady=5, padx=2)
 
         self.cartp2p = tk.Button(self.motion_control,
                                           text='Send cmd', fg='blue',
                                  command=self.cartp2p_fnc, font='Courier 20 bold')
-        self.cartp2p.grid(row=1, column=1, sticky=tk.NSEW,
+        self.cartp2p.grid(row=2, column=3, sticky=tk.NSEW,
                                    pady=5, padx=2)
 
+        # Labeled inputs for cartp2p
+        self.cartp2p_label = tk.Label(self.motion_control,
+                                               text='Trans x',
+                                               font='Courier 20 bold')
+        self.cartp2p_label.grid(row=3, column=0,
+                                         sticky=tk.NSEW, pady=10, padx=2)
+
+        self.cartp2p_label = tk.Label(self.motion_control,
+                                               text='Trans y',
+                                               font='Courier 20 bold')
+        self.cartp2p_label.grid(row=3, column=1,
+                                         sticky=tk.NSEW, pady=10, padx=2)
+                                        
+        self.cartp2p_label = tk.Label(self.motion_control,
+                                               text='Trans z',
+                                               font='Courier 20 bold')
+        self.cartp2p_label.grid(row=3, column=2,
+                                         sticky=tk.NSEW, pady=10, padx=2)
+        self.cartp2p_label = tk.Label(self.motion_control,
+                                               text='Rot x',
+                                               font='Courier 20 bold')
+        self.cartp2p_label.grid(row=3, column=3,
+                                         sticky=tk.NSEW, pady=10, padx=20)
+
+        self.cartp2p_label = tk.Label(self.motion_control,
+                                               text='Rot y',
+                                               font='Courier 20 bold')
+        self.cartp2p_label.grid(row=3, column=4,
+                                         sticky=tk.NSEW, pady=10, padx=20)
+                                        
+        self.cartp2p_label = tk.Label(self.motion_control,
+                                               text='Rot z',
+                                               font='Courier 20 bold')
+        self.cartp2p_label.grid(row=3, column=5,
+                                         sticky=tk.NSEW, pady=10, padx=20)
+
+        # Fields for the related entries
+        self.cart_trans_x = tk.Entry(self.motion_control, width=12, font='Courier 20 bold')
+        self.cart_trans_x.grid(row=4, column=0, sticky=tk.NSEW, pady=5, padx=2)
+
+        self.cart_trans_y = tk.Entry(self.motion_control, width=12, font='Courier 20 bold')
+        self.cart_trans_y.grid(row=4, column=1, sticky=tk.NSEW, pady=5, padx=2)
+
+        self.cart_trans_z = tk.Entry(self.motion_control, width=12, font='Courier 20 bold')
+        self.cart_trans_z.grid(row=4, column=2, sticky=tk.NSEW, pady=5, padx=2)
+
+        self.cart_rot_x = tk.Entry(self.motion_control, width=12, font='Courier 20 bold')
+        self.cart_rot_x.grid(row=4, column=3, sticky=tk.NSEW, pady=5, padx=2)
+
+        self.cart_rot_y = tk.Entry(self.motion_control, width=12, font='Courier 20 bold')
+        self.cart_rot_y.grid(row=4, column=4, sticky=tk.NSEW, pady=5, padx=2)
+
+        self.cart_rot_z = tk.Entry(self.motion_control, width=12, font='Courier 20 bold')
+        self.cart_rot_z.grid(row=4, column=5, sticky=tk.NSEW, pady=5, padx=2)
 
         # Torsional Wiggle Pull
 
         self.torsional_wiggle_pull_label = \
-            tk.Label(self.wiggle_control, text='Torsional Wiggle Pull:'
+            tk.Label(self.wiggle_control, text='Tors Wiggle Pull:'
                      , font='Courier 20 bold')
         self.torsional_wiggle_pull_label.grid(row=0, column=0,
                 sticky=tk.NSEW, pady=5, padx=2)
@@ -171,7 +225,7 @@ class Application(tk.Frame):
         # Torsional Wiggle Push
 
         self.torsional_wiggle_push_label = \
-            tk.Label(self.wiggle_control, text='Torsional Wiggle Push:'
+            tk.Label(self.wiggle_control, text='Tors Wiggle Push:'
                      , font='Courier 20 bold')
         self.torsional_wiggle_push_label.grid(row=1, column=0,
                 sticky=tk.NSEW, pady=5, padx=2)
@@ -205,7 +259,7 @@ class Application(tk.Frame):
 
         self.translational_wiggle_pull_label = \
             tk.Label(self.wiggle_control,
-                     text='Translational Wiggle Pull:',
+                     text='Trans Wiggle Pull:',
                      font='Courier 20 bold')
         self.translational_wiggle_pull_label.grid(row=2, column=0,
                 sticky=tk.NSEW, pady=5, padx=2)
@@ -239,7 +293,7 @@ class Application(tk.Frame):
 
         self.translational_wiggle_push_label = \
             tk.Label(self.wiggle_control,
-                     text='Translational Wiggle Push:',
+                     text='Trans Wiggle Push:',
                      font='Courier 20 bold')
         self.translational_wiggle_push_label.grid(row=3, column=0,
                 sticky=tk.NSEW, pady=5, padx=2)
@@ -308,8 +362,12 @@ class Application(tk.Frame):
 
     def clear_text(self):
 
-        # print("Here, i run a command using os, skill 1")
-
+        self.cart_trans_x.delete(0, 'end')
+        self.cart_trans_y.delete(0, 'end')
+        self.cart_trans_z.delete(0, 'end')
+        self.cart_rot_x.delete(0, 'end')
+        self.cart_rot_y.delete(0, 'end')
+        self.cart_rot_z.delete(0, 'end')
         self.entry.delete(0, 'end')
 
 
@@ -356,6 +414,41 @@ class Application(tk.Frame):
         # print("Here, i run a command using os, skill 2")
 
         # Fix function call, and accept the inputs from the correct fields
+        
+        # Parse each input, if it is a 
+        # x = y = z = rot_x = rot_y = rot_z = 0
+        try:
+            x = float(self.cart_trans_x.get())
+        except:
+            x = 0
+
+        try:
+            y = float(self.cart_trans_y.get())
+        except:
+            y = 0
+
+        try:
+            z = float(self.cart_trans_z.get())
+        except:
+            z = 0
+
+        try:
+            rot_x = float(self.cart_rot_x.get())
+        except:
+            rot_x = 0
+
+        try:
+            rot_y = float(self.cart_rot_y.get())
+        except:
+            rot_y = 0
+
+        try:
+            rot_z = float(self.cart_rot_z.get())
+        except:
+            rot_z = 0
+
+        print(x,y,z,rot_x,rot_y,rot_z)
+        '''
         command = \
             'rosrun behavior_algorithms force_moment_accommodation'
         run_time = self.parse_entry()
@@ -367,7 +460,8 @@ class Application(tk.Frame):
         time.sleep(delay_len)
         os.system(command)
         time.sleep(delay_len)
-    # rosrun behavior_algorithms torsional_wiggle_pull _wiggle_time:=6
+        '''
+    
 
     def torsional_wiggle_pull(self):
 

@@ -64,6 +64,7 @@ int main(int argc, char** argv) {
     ros::NodeHandle nh;
 
     // ROS: Define subscribers and publishers used
+    //! Can just change transformed FT wrench to be normal ft wrench!!!!!!(only created in acc controller, we should read FT in tool frame, not robot base)
     ros::Subscriber cartesian_state_subscriber = nh.subscribe("cartesian_logger",1, cartesian_state_callback); // subscribe to the topic publishing the cartesian state of the end effector
     ros::Subscriber ft_subscriber = nh.subscribe("transformed_ft_wrench",1,ft_callback);                       // subscribe to the force/torque sensor data
     ros::Subscriber tool_vector_sub_z = nh.subscribe("tool_vector_z",1,tool_vector_callback);                  // subscribe to the value of the tool vector in the z, published from the accomodation controller
@@ -352,6 +353,8 @@ int main(int argc, char** argv) {
     angle_axis_theta = angleAxis.angle();
     k_rot_axis = angleAxis.axis();
 
+    //TODO Make sure that the values for the inputs are vectors for translation in the correct frame
+    //? i.e. multiply x trans by x tool frame vec, and so on to get the translation in the right frame
 
     //? unused values
     // Used when we calculate how many steps we want to use
