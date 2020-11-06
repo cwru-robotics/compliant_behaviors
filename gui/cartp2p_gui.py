@@ -121,13 +121,19 @@ class Application(tk.Frame):
         self.force_moment_acc_preset_2.grid(row=1, column=2,
                 sticky=tk.NSEW, pady=5, padx=2)
 
-        # Cartesian point to point inputs here
+        # Cart P2P Label and Submission Button
+        self.cartp2p_label = tk.Label(self.motion_control,
+                                               text='Cartesian P2PTWL:',
+                                               font='Courier 20 bold')
+        self.cartp2p_label.grid(row=2, column=0,
+                                         sticky=tk.NSEW, pady=5, padx=2)
 
-        # Text for what it is
+        self.cartp2p = tk.Button(self.motion_control,
+                                          text='Send cmd', fg='blue',
+                                 command=self.cartp2p_fnc, font='Courier 20 bold')
+        self.cartp2p.grid(row=1, column=1, sticky=tk.NSEW,
+                                   pady=5, padx=2)
 
-        # Input boxes for each 6dof
-
-        # Submit button (maybe at the top with the text/title)
 
         # Torsional Wiggle Pull
 
@@ -306,7 +312,6 @@ class Application(tk.Frame):
 
         self.entry.delete(0, 'end')
 
-        # os.system("rosrun irb120_accomodation_control accommodation_controller") 
 
     def force_moment_acc(self):
 
@@ -346,6 +351,22 @@ class Application(tk.Frame):
     # New example 
     # rosrun behavior_algorithms orientation_targeting_effort_limiting_y _target_orientation:=0.25
 
+    def cartp2p_fnc(self):
+
+        # print("Here, i run a command using os, skill 2")
+
+        # Fix function call, and accept the inputs from the correct fields
+        command = \
+            'rosrun behavior_algorithms force_moment_accommodation'
+        run_time = self.parse_entry()
+        if run_time > 0:
+            command = command + ' _run_time:=%f' % run_time
+
+        # print(command)
+
+        time.sleep(delay_len)
+        os.system(command)
+        time.sleep(delay_len)
     # rosrun behavior_algorithms torsional_wiggle_pull _wiggle_time:=6
 
     def torsional_wiggle_pull(self):
