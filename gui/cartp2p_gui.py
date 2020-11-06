@@ -448,19 +448,17 @@ class Application(tk.Frame):
             rot_z = 0
 
         print(x,y,z,rot_x,rot_y,rot_z)
-        '''
+        
         command = \
-            'rosrun behavior_algorithms force_moment_accommodation'
-        run_time = self.parse_entry()
-        if run_time > 0:
-            command = command + ' _run_time:=%f' % run_time
+            'rosrun behavior_algorithms ptwl_cartp2p _trans_x:={0} _trans_y:={1} _trans_z:={2} _rot_x:={3} _rot_y:={4} _rot_z:={5}'.format(x,y,z,rot_x,rot_y,rot_z)
+        
 
         # print(command)
 
         time.sleep(delay_len)
         os.system(command)
         time.sleep(delay_len)
-        '''
+        
     
 
     def torsional_wiggle_pull(self):

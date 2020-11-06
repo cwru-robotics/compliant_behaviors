@@ -300,7 +300,11 @@ int main(int argc, char** argv) {
 
     //TODO Calculate the end pose here based on the input, take the relative change and add it in the tool frame,
     //TODO if we use interactive markers in rviz, use that to get ending pos
-    
+
+    //TODO Make sure that the values for the inputs are vectors for translation in the correct frame
+    //? i.e. multiply x trans by x tool frame vec, and so on to get the translation in the right frame
+    // take the vector, multiply it, and then add all 3 together for a new delta trans vec, and then that is the end
+    // 
     //! Populate and update end position and rotation stuff, either callback to the Interactive Markers
     // Change this value to 
     geometry_msgs::Vector3 ending_position;
@@ -352,9 +356,6 @@ int main(int argc, char** argv) {
     double angle_axis_theta, theta_interp, dtheta;
     angle_axis_theta = angleAxis.angle();
     k_rot_axis = angleAxis.axis();
-
-    //TODO Make sure that the values for the inputs are vectors for translation in the correct frame
-    //? i.e. multiply x trans by x tool frame vec, and so on to get the translation in the right frame
 
     //? unused values
     // Used when we calculate how many steps we want to use
