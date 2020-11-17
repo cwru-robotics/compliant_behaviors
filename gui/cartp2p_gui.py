@@ -39,11 +39,11 @@ class Application(tk.Frame):
         self.tab_control = ttk.Notebook(self.master)
         self.motion_control = ttk.Frame(self.tab_control)
         self.wiggle_control = ttk.Frame(self.tab_control)
-        self.misc_commands = ttk.Frame(self.tab_control)
+        # self.misc_commands = ttk.Frame(self.tab_control)
 
         self.tab_control.add(self.motion_control, text='Motion Control')
         self.tab_control.add(self.wiggle_control, text='Dither Control')
-        self.tab_control.add(self.misc_commands, text='Misc. Commands')
+        # self.tab_control.add(self.misc_commands, text='Misc. Commands')
 
         # Pack and display the tabs
 
@@ -91,34 +91,34 @@ class Application(tk.Frame):
 
         # Force Moment Accomodation (Present in both motion and orientation control tabs)
         # MOTION CONTROL FMA
-        self.force_moment_acc_label = tk.Label(self.misc_commands,
+        self.force_moment_acc_label = tk.Label(self.motion_control,
                 text='Limp Mode:',
                 font='Courier 20 bold')
-        self.force_moment_acc_label.grid(row=3, column=0,
+        self.force_moment_acc_label.grid(row=5, column=1,
                 sticky=tk.NSEW, pady=5, padx=2)
 
-        self.force_moment_acc = tk.Button(self.misc_commands,
+        self.force_moment_acc = tk.Button(self.motion_control,
                 text='text in', fg='blue',
                 command=self.force_moment_acc, font='Courier 20 bold')
-        self.force_moment_acc.grid(row=3, column=1, sticky=tk.NSEW,
+        self.force_moment_acc.grid(row=5, column=2, sticky=tk.NSEW,
                                    pady=5, padx=2)
 
         # Preset Value 1
 
-        self.force_moment_acc_preset_1 = tk.Button(self.misc_commands,
+        self.force_moment_acc_preset_1 = tk.Button(self.motion_control,
                 text='10 sec', fg='blue',
                 command=self.force_moment_acc_preset_1,
                 font='Courier 20 bold')
-        self.force_moment_acc_preset_1.grid(row=3, column=3,
+        self.force_moment_acc_preset_1.grid(row=5, column=4,
                 sticky=tk.NSEW, pady=5, padx=2)
 
         # Preset Value 2
 
-        self.force_moment_acc_preset_2 = tk.Button(self.misc_commands,
+        self.force_moment_acc_preset_2 = tk.Button(self.motion_control,
                 text='5 sec', fg='blue',
                 command=self.force_moment_acc_preset_2,
                 font='Courier 20 bold')
-        self.force_moment_acc_preset_2.grid(row=3, column=2,
+        self.force_moment_acc_preset_2.grid(row=5, column=3,
                 sticky=tk.NSEW, pady=5, padx=2)
 
         # Cart P2P Label and Submission Button
@@ -133,6 +133,21 @@ class Application(tk.Frame):
                                  command=self.cartp2p_fnc, font='Courier 20 bold')
         self.cartp2p.grid(row=2, column=3, sticky=tk.NSEW,
                                    pady=5, padx=2)
+
+        # Label for translation and rotation units
+        self.trans_label = tk.Label(self.motion_control,
+                                               text='Trans in m',
+                                               fg='green',
+                                               font='Courier 20 bold')
+        self.trans_label.grid(row=2, column=0,
+                                         sticky=tk.NSEW, pady=5, padx=2)
+
+        self.rot_label = tk.Label(self.motion_control,
+                                               text='Rot in rads',
+                                               fg='green',
+                                               font='Courier 20 bold')
+        self.rot_label.grid(row=2, column=5,
+                                         sticky=tk.NSEW, pady=5, padx=2)
 
         # Labeled inputs for cartp2p
         self.cartp2p_label = tk.Label(self.motion_control,
@@ -192,7 +207,7 @@ class Application(tk.Frame):
         # Torsional Wiggle Pull
 
         self.torsional_wiggle_pull_label = \
-            tk.Label(self.wiggle_control, text='Tors Wiggle Pull:'
+            tk.Label(self.wiggle_control, text='Torsional Wiggle Pull:'
                      , font='Courier 20 bold')
         self.torsional_wiggle_pull_label.grid(row=0, column=0,
                 sticky=tk.NSEW, pady=5, padx=2)
@@ -225,7 +240,7 @@ class Application(tk.Frame):
         # Torsional Wiggle Push
 
         self.torsional_wiggle_push_label = \
-            tk.Label(self.wiggle_control, text='Tors Wiggle Push:'
+            tk.Label(self.wiggle_control, text='Torsional Wiggle Push:'
                      , font='Courier 20 bold')
         self.torsional_wiggle_push_label.grid(row=1, column=0,
                 sticky=tk.NSEW, pady=5, padx=2)
@@ -259,7 +274,7 @@ class Application(tk.Frame):
 
         self.translational_wiggle_pull_label = \
             tk.Label(self.wiggle_control,
-                     text='Trans Wiggle Pull:',
+                     text='Translational Wiggle Pull:',
                      font='Courier 20 bold')
         self.translational_wiggle_pull_label.grid(row=2, column=0,
                 sticky=tk.NSEW, pady=5, padx=2)
@@ -293,7 +308,7 @@ class Application(tk.Frame):
 
         self.translational_wiggle_push_label = \
             tk.Label(self.wiggle_control,
-                     text='Trans Wiggle Push:',
+                     text='Translational Wiggle Push:',
                      font='Courier 20 bold')
         self.translational_wiggle_push_label.grid(row=3, column=0,
                 sticky=tk.NSEW, pady=5, padx=2)
@@ -323,35 +338,6 @@ class Application(tk.Frame):
         self.translational_wiggle_push_pre_2.grid(row=3, column=3,
                 sticky=tk.NSEW, pady=5, padx=2)
 
-
-        # Button for Zero Forces
-        self.zero_forces = tk.Button(self.misc_commands,
-                text='Zero all Forces', fg='blue',
-                command=self.zero_forces, font='Courier 20 bold')
-        self.zero_forces.grid(row=0, column=0,
-                sticky=tk.NSEW, pady=5, padx=2)
-
-        # Button for Setting Task Frame
-        self.set_task_frame = tk.Button(self.misc_commands,
-                text='Set Task Frame', fg='blue',
-                command=self.set_task_frame, font='Courier 20 bold')
-        self.set_task_frame.grid(row=1, column=0,
-                sticky=tk.NSEW, pady=5, padx=2)
-
-
-        # Button for Open Gripper
-        self.open_gripper = tk.Button(self.misc_commands,
-                text='Open Gripper', fg='blue',
-                command=self.open_gripper, font='Courier 20 bold')
-        self.open_gripper.grid(row=0, column=1,
-                sticky=tk.NSEW, pady=5, padx=2)
-
-        # Button for Close Gripper
-        self.close_gripper = tk.Button(self.misc_commands,
-                text='Close Gripper', fg='blue',
-                command=self.close_gripper, font='Courier 20 bold')
-        self.close_gripper.grid(row=1, column=1,
-                sticky=tk.NSEW, pady=5, padx=2)
 
         # Show all buttons
 

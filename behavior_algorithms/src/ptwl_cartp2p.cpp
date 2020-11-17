@@ -172,7 +172,7 @@ int main(int argc, char** argv) {
     
     // ROS: Get parameter passed in 
     nh.param("/CartP2PTWL/target_distance", TARGET_DISTANCE, 0.03); //! Convert to target pos and orient
-    nh.param<std::string>("/CartP2PTWL/param_set", param_set, "Peg");
+    nh.param<std::string>("/CartP2PTWL/param_set", param_set, "Tool");
 
     // clear parameter from server 
     nh.deleteParam("/CartP2PTWL/target_distance"); 
