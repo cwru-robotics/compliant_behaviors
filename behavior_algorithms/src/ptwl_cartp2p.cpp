@@ -136,10 +136,12 @@ int main(int argc, char** argv) {
         naptime.sleep();
     }
     
-    
-    // Check here after a spin, and unfreeze if it is frozen
+    //? make sure this works, sometimes it has issues if alread frozen, will spin once to check the data
+    // Check here after a spin, and unfreeze if it is frozen, 
     while(freeze_mode_status.data == 1 && freeze_mode){
-        
+        ros::spinOnce();
+        naptime.sleep();
+
         if(freeze_client.call(freeze_srv)){
             // success
             cout<<"Called freeze mode service succesfully"<<endl;
@@ -152,7 +154,6 @@ int main(int argc, char** argv) {
         }
         ros::spinOnce();
         naptime.sleep();
-        
 
     }
     
@@ -171,7 +172,7 @@ int main(int argc, char** argv) {
     // The end effector pose (current_pose) and force torque data (ft_in_robot_frame) are global variables.
     
     // ROS: Get parameter passed in 
-    nh.param("/CartP2PTWL/target_distance", TARGET_DISTANCE, 0.03); //! Convert to target pos and orient
+    nh.param("/CartP2PTWL/trans_x", TARGET_DISTANCE, 0.0); //! Convert to target pos and orient
     nh.param<std::string>("/CartP2PTWL/param_set", param_set, "Tool");
 
     // clear parameter from server 
@@ -289,13 +290,20 @@ int main(int argc, char** argv) {
     start_pose_quat.z() = current_pose.orientation.z;
     start_pose_quat.w() = current_pose.orientation.w;
 
+
+    //TODO Task is set to false, need to update to use task frame with cartp2p
+    task = false;
+
     // Update to accept input of goal pose here, and then add the deltas 
     geometry_msgs::Vector3 delta_trans_vec;
     if(task){
         delta_trans_vec = task_vector_z;
     }
     else{
-        delta_trans_vec = tool_vector_z;   
+        //! Get the rotation portion included 
+        delta_trans_vec.x = x;
+        delta_trans_vec.y = y;
+        delta_trans_vec.z = z;
     }
 
     //TODO Calculate the end pose here based on the input, take the relative change and add it in the tool frame,
@@ -308,10 +316,11 @@ int main(int argc, char** argv) {
     //! Populate and update end position and rotation stuff, either callback to the Interactive Markers
     // Change this value to 
     geometry_msgs::Vector3 ending_position;
-    ending_position.x = start_position.x + delta_trans_vec.x * TARGET_DISTANCE;
-    ending_position.y = start_position.y + delta_trans_vec.y * TARGET_DISTANCE;
-    ending_position.z = start_position.z + delta_trans_vec.z * TARGET_DISTANCE;
+    ending_position.x = start_position.x + delta_trans_vec.x; // * TARGET_DISTANCE;
+    ending_position.y = start_position.y + delta_trans_vec.y; // * TARGET_DISTANCE;
+    ending_position.z = start_position.z + delta_trans_vec.z; // * TARGET_DISTANCE;
 
+    //TODO get the orientation input
     Eigen::Quaterniond end_pose_quat;
     end_pose_quat.x() = current_pose.orientation.x;
     end_pose_quat.y() = current_pose.orientation.y;
