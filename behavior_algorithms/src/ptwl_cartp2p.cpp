@@ -110,6 +110,7 @@ int main(int argc, char** argv) {
     */
     double PULL_DISTANCE = 0.012, KEEP_CONTACT_DISTANCE = 0.0075, DT = 0.01, FORCE_THRESHOLD = 12, TARGET_DISTANCE = 0.05; 
     double NONDIRECTIONAL_FORCE_THRESHOLD = 20, KEEP_CUTTING_DISTANCE = 0, MAX_VEL = 0.01, MAX_ANG = 0.2; 
+    //! These names may want to change
     double x = 0, y = 0, z = 0;
     double psi = 0, theta = 0, phi = 0; 
     double TORQUE_THRESHOLD = 2;
@@ -172,11 +173,22 @@ int main(int argc, char** argv) {
     // The end effector pose (current_pose) and force torque data (ft_in_robot_frame) are global variables.
     
     // ROS: Get parameter passed in 
-    nh.param("/CartP2PTWL/trans_x", TARGET_DISTANCE, 0.0); //! Convert to target pos and orient
+    nh.param("/CartP2PTWL/trans_x", x, 0.0); //! Convert to target pos and orient
+    nh.param("/CartP2PTWL/trans_y", y, 0.0);
+    nh.param("/CartP2PTWL/trans_z", z, 0.0);
+    nh.param("/CartP2PTWL/rot_x", psi, 0.0);
+    nh.param("/CartP2PTWL/rot_z", theta, 0.0);
+    nh.param("/CartP2PTWL/rot_y", phi, 0.0);
+    
     nh.param<std::string>("/CartP2PTWL/param_set", param_set, "Tool");
 
     // clear parameter from server 
-    nh.deleteParam("/CartP2PTWL/target_distance"); 
+    nh.deleteParam("/CartP2PTWL/trans_x"); 
+    nh.deleteParam("/CartP2PTWL/trans_y"); 
+    nh.deleteParam("/CartP2PTWL/trans_z"); 
+    nh.deleteParam("/CartP2PTWL/rot_x"); 
+    nh.deleteParam("/CartP2PTWL/rot_z"); 
+    nh.deleteParam("/CartP2PTWL/rot_y"); 
     nh.deleteParam("/CartP2PTWL/param_set");
 
     // Here, the values for PULL_DISTANCE and FORCE_THRESHOLD are changed according to what setting the GUI is on for the appropriate task
@@ -320,13 +332,7 @@ int main(int argc, char** argv) {
     ending_position.y = start_position.y + delta_trans_vec.y; // * TARGET_DISTANCE;
     ending_position.z = start_position.z + delta_trans_vec.z; // * TARGET_DISTANCE;
 
-    //TODO get the orientation input
-    Eigen::Quaterniond end_pose_quat;
-    end_pose_quat.x() = current_pose.orientation.x;
-    end_pose_quat.y() = current_pose.orientation.y;
-    end_pose_quat.z() = current_pose.orientation.z;
-    end_pose_quat.w() = current_pose.orientation.w;
-
+    
     // Take the delta input from the gui to rotate.
     // MATH: Define the rotation matrix to the destination
     //! Angles are x: psi, y: theta, z: phi
@@ -340,7 +346,8 @@ int main(int argc, char** argv) {
     TO_DESTINATION_ROTATION_MATRIX(2,0) = -sin(theta);
     TO_DESTINATION_ROTATION_MATRIX(2,1) = sin(psi) * cos(theta);
     TO_DESTINATION_ROTATION_MATRIX(2,2) = cos(psi) * cos(theta);
-    // TODO interpolate the pose from the other code, find out how many steps we want > max vel angular/linear
+
+    
 
     // Angular would just be deltaTheta/dt <= some value
     // Linear would be the deltaPos (sqrt(x^2+y^2+z^2))/dt 
@@ -356,9 +363,17 @@ int main(int argc, char** argv) {
 
     Eigen::Matrix3d R_start, R_end, R_change, R_change_interp, R_interp;
     R_start = start_pose_quat.normalized().toRotationMatrix(); // current tool pose, convert to rotation
-    R_end = end_pose_quat.normalized().toRotationMatrix(); // end pose, convert to rotation
+
+    // Take the start rotation, apply the desired rotation to calculate the final rotation matrix
+    R_end = start_pose_quat * TO_DESTINATION_ROTATION_MATRIX; // I feel this math may need to be flipped, but it seems to check based on OTEL
+
+    //? Below line is used if we have the end pose given to us, here we do not and thus must calculate it above
+    // R_end = end_pose_quat.normalized().toRotationMatrix(); // end pose, convert to rotation 
+
+    //TODO get the orientation input, needs to be updated
+    Eigen::Quaterniond end_pose_quat(R_end);
     //R_end = R_change*R_start
-    R_change = TO_DESTINATION_ROTATION_MATRIX;
+    R_change = TO_DESTINATION_ROTATION_MATRIX; // could also manually check, but the math just uses this
     Eigen::AngleAxisd angleAxis(R_change); //convert rotation matrix to angle/axis
 
     //interpolate with angle theta_interp about k_rot_axis, which is updated in main method, dtheta is the increment value
@@ -413,7 +428,7 @@ int main(int argc, char** argv) {
     
 
     
-    //TODO Update goal reached exit condition
+    //TODO Update goal reached exit condition to include orientation
     // Dot product, uf the value is above 0, we hit the target movement
     double dot_product = vector_to_goal.x * delta_trans_vec.x + vector_to_goal.y * delta_trans_vec.y + vector_to_goal.z * delta_trans_vec.z;
     
