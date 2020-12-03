@@ -24,6 +24,9 @@ geometry_msgs::Pose current_pose;
 geometry_msgs::PoseStamped virtual_attractor;
 geometry_msgs::Wrench ft_in_robot_frame;
 
+geometry_msgs::Wrench ft_in_sensor_frame; //TODO implement this, is this the correct data type to store this in?
+Eigen::VectorXd ft_in_sensor_frame = Eigen::VectorXd::Zero(6);
+
 geometry_msgs::Vector3 tool_vector_z;
 geometry_msgs::Vector3 task_vector_z;
 
@@ -36,9 +39,21 @@ void cartesian_state_callback(const geometry_msgs::PoseStamped& cartesian_pose) 
     current_pose = cartesian_pose.pose;
 }
 
+//TODO For use for bumpless start
 void ft_callback(const geometry_msgs::Wrench& ft_values) {
     // These are not values from the sensor. They are f/t values transformed into robot base frame.
     ft_in_robot_frame = ft_values;
+}
+
+// For use for exit wrench conditions
+void ft_sensor_callback(const geometry_msgs::Wrench &ft_values){
+    // These are not values from the sensor. They are f/t values transformed into robot base frame.
+    ft_in_sensor_frame(0) = std::round(ft_sensor.wrench.force.x * 10) / 10;
+    ft_in_sensor_frame(1) = std::round(ft_sensor.wrench.force.y * 10) / 10;
+    ft_in_sensor_frame(2) = std::round(ft_sensor.wrench.force.z * 10) / 10;
+    ft_in_sensor_frame(3) = std::round(ft_sensor.wrench.torque.x * 10) / 10;
+    ft_in_sensor_frame(4) = std::round(ft_sensor.wrench.torque.y * 10) / 10;
+    ft_in_sensor_frame(5) = std::round(ft_sensor.wrench.torque.z * 10) / 10;
 }
 
 void tool_vector_callback(const geometry_msgs::Vector3& tool_vector_msg_z) {
@@ -65,9 +80,12 @@ int main(int argc, char** argv) {
 
     // ROS: Define subscribers and publishers used
     //! Can just change transformed FT wrench to be normal ft wrench!!!!!!(only created in acc controller, we should read FT in tool frame, not robot base)
+
+    //! We want both the TF FT, and the Tool FT
     ros::Subscriber cartesian_state_subscriber = nh.subscribe("cartesian_logger",1, cartesian_state_callback); // subscribe to the topic publishing the cartesian state of the end effector
     ros::Subscriber ft_subscriber = nh.subscribe("transformed_ft_wrench",1,ft_callback);                       // subscribe to the force/torque sensor data
-    ros::Subscriber tool_vector_sub_z = nh.subscribe("tool_vector_z",1,tool_vector_callback);                  // subscribe to the value of the tool vector in the z, published from the accomodation controller
+    ros::Subscriber ft_sensor_sub = nh.subscribe("robotiq_ft_wrench", 1, ft_sensor_callback);                  // ROS: Subscribe to the force-torque sensor wrench
+    ros::Subscriber tool_vector_sub_z = nh.subscribe("tool_vector_z", 1, tool_vector_callback);                // subscribe to the value of the tool vector in the z, published from the accomodation controller
     ros::Subscriber task_vector_sub_z = nh.subscribe("task_vector_z",1,task_vector_callback);                  // subscribe to the value of the task vector in the z, published from the accomodation controller
     ros::Publisher virtual_attractor_publisher = nh.advertise<geometry_msgs::PoseStamped>("Virt_attr_pose",1); // publish the pose of the virtual attractor for the accomodation controller 
 
@@ -222,13 +240,13 @@ int main(int argc, char** argv) {
     }
     else if (!strcmp(param_set.c_str(), "Tool")){
         // set the other values here
-        PULL_DISTANCE = 0.015;
-        FORCE_THRESHOLD = 15;
-        NONDIRECTIONAL_FORCE_THRESHOLD = 20;
-        TORQUE_THRESHOLD = 2;
+        PULL_DISTANCE = 0;
+        FORCE_THRESHOLD = 25;
+        NONDIRECTIONAL_FORCE_THRESHOLD = 30;
+        TORQUE_THRESHOLD = 4;
         KEEP_CONTACT_DISTANCE = 0;
         KEEP_CUTTING_DISTANCE = 0;
-        RUN_TIME = 15;
+        RUN_TIME = 30;
 
         cutting = false;
         task = false;
@@ -265,9 +283,10 @@ int main(int argc, char** argv) {
     //TODO ADD PARAM FOR TOOL EXCHANGE
 
 
-    ROS_INFO("Output from parameter for target_distance; %f", TARGET_DISTANCE); 
+    // ROS_INFO("Output from parameter for target_distance; %f", TARGET_DISTANCE); 
 
     // With labeled parameter, now call service to send message that program will start
+    //TODO update this message
     std::ostringstream request_status; 
     request_status << "target_distance " << TARGET_DISTANCE << "m";
 
@@ -276,7 +295,7 @@ int main(int argc, char** argv) {
     // ROS: Call the client start service, used in buffer.cpp for operator output
     if(client_start.call(srv)){
         // success
-        cout<<"Called service_start with name succesfully"<<endl;
+        cout<<"Called buffer service_start with name succesfully"<<endl;
     }
     else{
         // failed to call service
@@ -295,6 +314,7 @@ int main(int argc, char** argv) {
     start_position.x = current_pose.position.x;
     start_position.y = current_pose.position.y;
     start_position.z = current_pose.position.z;
+    //TODO Subscribe to the TFed wrench and utilize it for the initial attractor position
 
     Eigen::Quaterniond start_pose_quat;
     start_pose_quat.x() = current_pose.orientation.x;
@@ -303,8 +323,10 @@ int main(int argc, char** argv) {
     start_pose_quat.w() = current_pose.orientation.w;
 
 
-    //TODO Task is set to false, need to update to use task frame with cartp2p
+    //TODO Task is set to false, need to update to use task frame with cartp2p, other values are also removed here
     task = false;
+    KEEP_CONTACT_DISTANCE = 0;
+    KEEP_CUTTING_DISTANCE = 0;
 
     // Update to accept input of goal pose here, and then add the deltas 
     geometry_msgs::Vector3 delta_trans_vec;
@@ -312,7 +334,7 @@ int main(int argc, char** argv) {
         delta_trans_vec = task_vector_z;
     }
     else{
-        //! Get the rotation portion included 
+        // The values from the parameters are stored here
         delta_trans_vec.x = x;
         delta_trans_vec.y = y;
         delta_trans_vec.z = z;
@@ -328,15 +350,15 @@ int main(int argc, char** argv) {
     //! Populate and update end position and rotation stuff, either callback to the Interactive Markers
     // Change this value to 
     geometry_msgs::Vector3 ending_position;
-    ending_position.x = start_position.x + delta_trans_vec.x; // * TARGET_DISTANCE;
-    ending_position.y = start_position.y + delta_trans_vec.y; // * TARGET_DISTANCE;
-    ending_position.z = start_position.z + delta_trans_vec.z; // * TARGET_DISTANCE;
+    ending_position.x = start_position.x + delta_trans_vec.x;
+    ending_position.y = start_position.y + delta_trans_vec.y;
+    ending_position.z = start_position.z + delta_trans_vec.z;
 
     
     // Take the delta input from the gui to rotate.
     // MATH: Define the rotation matrix to the destination
     //! Angles are x: psi, y: theta, z: phi
-    Eigen::Matrix3d TO_DESTINATION_ROTATION_MATRIX;
+    Eigen::Matrix3d TO_DESTINATION_ROTATION_MATRIX; //! Confirm that this rotation calculation is correct, seems off. Can be fixed easily
     TO_DESTINATION_ROTATION_MATRIX(0,0) = cos(theta)*cos(phi);
     TO_DESTINATION_ROTATION_MATRIX(0,1) = (sin(psi)*sin(theta)*sin(phi)) - (cos(psi)*sin(phi));
     TO_DESTINATION_ROTATION_MATRIX(0,2) = (cos(psi)*sin(theta)*sin(phi)) - (sin(psi)*cos(phi)); 
@@ -347,19 +369,9 @@ int main(int argc, char** argv) {
     TO_DESTINATION_ROTATION_MATRIX(2,1) = sin(psi) * cos(theta);
     TO_DESTINATION_ROTATION_MATRIX(2,2) = cos(psi) * cos(theta);
 
-    
-
-    // Angular would just be deltaTheta/dt <= some value
-    // Linear would be the deltaPos (sqrt(x^2+y^2+z^2))/dt 
-    // Vector of the difference between the end pose and current pose, used to calculate if we reached target
-
-
-
-    Eigen::Affine3d a_flange_des;
 
     // ROTATION
     Eigen::Vector3d k_rot_axis;
-    Eigen::Vector3d dp_vec, O_interp, O_start, O_end;
 
     Eigen::Matrix3d R_start, R_end, R_change, R_change_interp, R_interp;
     R_start = start_pose_quat.normalized().toRotationMatrix(); // current tool pose, convert to rotation
@@ -373,7 +385,7 @@ int main(int argc, char** argv) {
     //TODO get the orientation input, needs to be updated
     Eigen::Quaterniond end_pose_quat(R_end);
     //R_end = R_change*R_start
-    R_change = TO_DESTINATION_ROTATION_MATRIX; // could also manually check, but the math just uses this
+    R_change = TO_DESTINATION_ROTATION_MATRIX; 
     Eigen::AngleAxisd angleAxis(R_change); //convert rotation matrix to angle/axis
 
     //interpolate with angle theta_interp about k_rot_axis, which is updated in main method, dtheta is the increment value
@@ -381,11 +393,6 @@ int main(int argc, char** argv) {
     angle_axis_theta = angleAxis.angle();
     k_rot_axis = angleAxis.axis();
 
-    //? unused values
-    // Used when we calculate how many steps we want to use
-    // geometry_msgs::Vector3 delta_translation; 
-    // geometry_msgs::Vector3 rot_axis; //! Get value from k_rot_axis, or keep as is and do rotation with the Eigen library
-    // double theta;
 
     // take theta, split it into the smaller sections, nsteps and dtheta and then use the max rotational velocity to get nsteps, 
     // then take the max steps from trans and then recalcuate the deltas
@@ -393,7 +400,7 @@ int main(int argc, char** argv) {
 
     // TRANSLATION
 
-    // CUrrent translation code
+    // Current translation code
     geometry_msgs::Vector3 vector_to_goal;
     vector_to_goal.x = ending_position.x - current_pose.position.x;
     vector_to_goal.y = ending_position.y - current_pose.position.y;
@@ -406,41 +413,50 @@ int main(int argc, char** argv) {
     // Here we do the math to check how many steps we wish to use, and what the value of dtheta will be, how many loops we will be doing
     int n_steps, ntrans, nrot;
     
-    //TODO Take max velocity, and calculate n_steps based on max vel, can go larger, but never smaller, same with the rotation
+    // Calculate the max number of steps for translation and rotation, take the max of those steps, set that as the runtime steps
     ntrans = (dist / MAX_VEL) / DT;
     nrot = (angle_axis_theta / MAX_ANG) / DT;
 
     // Get the larger of the two, now recalculate the deltas
     n_steps = ntrans < nrot ? nrot : ntrans;
 
-    // redo this line
-    // dp_vec = (O_end - O_start) / n_steps;
+    // Length of the run
+    //TODO send this information to be printed in some service? 
+    double run_length = n_steps * DT;
+    ROS_INFO("Runtime Length: %f", run_length); // might want to do a cout
 
+    // Scale the translation steps into the smaller sections to be added in each time step
     delta_trans_vec.x = vector_to_goal.x / n_steps;
     delta_trans_vec.y = vector_to_goal.y / n_steps;
     delta_trans_vec.z = vector_to_goal.z / n_steps;
 
-    //cout<<"O_start = "<<O_start.transpose()<<endl;
-    //cout<<"O_end = "<<O_end.transpose()<<endl;
-    //cout<<"dp_vec = "<<dp_vec.transpose()<<endl;
+    // The delta rotation for each step of the interpolation
+    dtheta = angle_axis_theta / n_steps;
+    theta_interp = 0.0;
+    R_change_interp = Eigen::AngleAxisd(theta_interp, k_rot_axis);
 
-    
-    
+    // Get a normalized version of the delta trans vec, for use with the goal check
+    geometry_msgs::Vector3 delta_trans_vec_norm;
+    delta_trans_vec_norm.x = delta_trans_vec.x / dist;
+    delta_trans_vec_norm.y = delta_trans_vec.y / dist;
+    delta_trans_vec_norm.z = delta_trans_vec.z / dist;
 
-    
     //TODO Update goal reached exit condition to include orientation
     // Dot product, uf the value is above 0, we hit the target movement
-    double dot_product = vector_to_goal.x * delta_trans_vec.x + vector_to_goal.y * delta_trans_vec.y + vector_to_goal.z * delta_trans_vec.z;
+    double dot_product = vector_to_goal.x * delta_trans_vec_norm.x + vector_to_goal.y * delta_trans_vec_norm.y + vector_to_goal.z * delta_trans_vec_norm.z;
     
-    // If it is past the plane perpendicular to the direction of movement at the goal position, then we have reached the target 
-    bool target_reached;
+    // If it is past the plane perpendicular to the direction of movement at the goal position, then we have reached the position
+    // If the rotation is within some amount, then we have reached the rotation, and if both are true, then we have reached the target 
+    bool target_reached, pos_reached, rot_reached;
 
     if(TARGET_DISTANCE < 0){
-        target_reached = dot_product >= 0;
+        pos_reached = dot_product >= 0;
     }
     else {
-        target_reached = dot_product <= 0;
+        pos_reached = dot_product <= 0;
     }
+
+    target_reached = pos_reached && rot_reached;
 
     // Debug output
     cout<<"Tool Vector Z"<<endl<<tool_vector_z<<endl;
@@ -458,8 +474,13 @@ int main(int argc, char** argv) {
                                  (abs(ft_in_robot_frame.force.x) > FORCE_THRESHOLD) || (abs(ft_in_robot_frame.force.y) > NONDIRECTIONAL_FORCE_THRESHOLD) || (abs(ft_in_robot_frame.force.z) > NONDIRECTIONAL_FORCE_THRESHOLD));
 
 
+    //TODO Bumpless start here, after making sure we have not crossed the effort limit already
+    virtual_attractor.pose = current_pose;
+
+
     // Used in the loop to determine the run time and time out
-    double total_number_of_loops = RUN_TIME / DT;
+    // double total_number_of_loops = RUN_TIME / DT; // perhaps change this to be n_steps instead
+    double total_number_of_loops = n_steps;
     double loops_so_far = 0;
 
     // Begin loop
@@ -478,32 +499,34 @@ int main(int argc, char** argv) {
         // ROS: for communication between programs
         ros::spinOnce();
 
-        // Keep virtual attractor at a distance, to pull the end effector
-        virtual_attractor.pose = current_pose;
- 
-        // Move in direction of the task frame when in cutting mode, else move in tool frame
-        //TODO update this with new inputs to program
-        if(TARGET_DISTANCE > 0){
+        // Add translation interpolation (maybe want to instead add the advancement to the starting pose, rather than the end)
+        virtual_attractor.pose.position.x = virtual_attractor.pose.position.x + delta_trans_vec.x;
+        virtual_attractor.pose.position.y = virtual_attractor.pose.position.y + delta_trans_vec.y;
+        virtual_attractor.pose.position.z = virtual_attractor.pose.position.z + delta_trans_vec.z;
 
-            virtual_attractor.pose.position.x = current_pose.position.x + delta_trans_vec.x;
-            virtual_attractor.pose.position.y = current_pose.position.y + delta_trans_vec.y;
-            virtual_attractor.pose.position.z = current_pose.position.z + delta_trans_vec.z;
-        }
-        // Move in direction of the task frame when in cutting mode, else move in tool frame
-        else {
-            // May no longer need or want this
-            virtual_attractor.pose.position.x = current_pose.position.x - delta_trans_vec.x;
-            virtual_attractor.pose.position.y = current_pose.position.y - delta_trans_vec.y;
-            virtual_attractor.pose.position.z = current_pose.position.z - delta_trans_vec.z;
-        }
+        // Advance rotation interpolation
+        theta_interp = (loops_so_far + 1) * dtheta;
+        R_change_interp = Eigen::AngleAxisd(theta_interp, k_rot_axis);
+        R_interp = R_change_interp * R_start;
 
+        // Update the rotation of the virtual attractor
+        Eigen::Quaterniond new_virtual_attractor_quat(R_interp);
+        virtual_attractor.pose.orientation.x = new_virtual_attractor_quat.x();
+        virtual_attractor.pose.orientation.y = new_virtual_attractor_quat.y();
+        virtual_attractor.pose.orientation.z = new_virtual_attractor_quat.z();
+        virtual_attractor.pose.orientation.w = new_virtual_attractor_quat.w();
+
+        // Update vector to goal for target reached check
         vector_to_goal.x = ending_position.x - current_pose.position.x;
         vector_to_goal.y = ending_position.y - current_pose.position.y;
         vector_to_goal.z = ending_position.z - current_pose.position.z;
 
-        // Dot product, uf the value is above 0, we hit the target movement
-        double dot_product = vector_to_goal.x * delta_trans_vec.x + vector_to_goal.y * delta_trans_vec.y + vector_to_goal.z * delta_trans_vec.z;
+        // Check rotation
+
+        // Dot product, if the value is above 0, we hit the target movement
+        double dot_product = vector_to_goal.x * delta_trans_vec_norm.x + vector_to_goal.y * delta_trans_vec_norm.y + vector_to_goal.z * delta_trans_vec_norm.z;
         
+        //TODO Update to match earlier check
         // If it is past the plane perpendicular to the direction of movement at the goal position, then we have reached the target 
         if(TARGET_DISTANCE < 0){
             target_reached = dot_product >= 0;
@@ -513,6 +536,7 @@ int main(int argc, char** argv) {
         }
 
         // Update the values for the loop condition
+        //TODO update these to be in sensor frame? 
         effort_limit_crossed = ((abs(ft_in_robot_frame.torque.x) > TORQUE_THRESHOLD) || (abs(ft_in_robot_frame.torque.y) > TORQUE_THRESHOLD) || (abs(ft_in_robot_frame.torque.z) > TORQUE_THRESHOLD) ||
                                  (abs(ft_in_robot_frame.force.x) > FORCE_THRESHOLD) || (abs(ft_in_robot_frame.force.y) > NONDIRECTIONAL_FORCE_THRESHOLD) || (abs(ft_in_robot_frame.force.z) > NONDIRECTIONAL_FORCE_THRESHOLD));
 
@@ -532,6 +556,7 @@ int main(int argc, char** argv) {
 
     // TODO update the end conditions
     // If we've crossed the effort limts, check which is crossed for the status output
+    //TODO change to be the non TFed wrench (tool frame relative)
     if(effort_limit_crossed) {
 
         // Print message
