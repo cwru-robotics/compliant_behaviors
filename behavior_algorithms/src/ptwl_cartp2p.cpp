@@ -25,7 +25,7 @@ geometry_msgs::PoseStamped virtual_attractor;
 geometry_msgs::Wrench ft_in_robot_frame;
 
 geometry_msgs::Wrench ft_in_sensor_frame; //TODO implement this, is this the correct data type to store this in?
-Eigen::VectorXd ft_in_sensor_frame = Eigen::VectorXd::Zero(6);
+// Eigen::VectorXd ft_in_sensor_frame = Eigen::VectorXd::Zero(6);
 
 geometry_msgs::Vector3 tool_vector_z;
 geometry_msgs::Vector3 task_vector_z;
@@ -48,12 +48,7 @@ void ft_callback(const geometry_msgs::Wrench& ft_values) {
 // For use for exit wrench conditions
 void ft_sensor_callback(const geometry_msgs::Wrench &ft_values){
     // These are not values from the sensor. They are f/t values transformed into robot base frame.
-    ft_in_sensor_frame(0) = std::round(ft_sensor.wrench.force.x * 10) / 10;
-    ft_in_sensor_frame(1) = std::round(ft_sensor.wrench.force.y * 10) / 10;
-    ft_in_sensor_frame(2) = std::round(ft_sensor.wrench.force.z * 10) / 10;
-    ft_in_sensor_frame(3) = std::round(ft_sensor.wrench.torque.x * 10) / 10;
-    ft_in_sensor_frame(4) = std::round(ft_sensor.wrench.torque.y * 10) / 10;
-    ft_in_sensor_frame(5) = std::round(ft_sensor.wrench.torque.z * 10) / 10;
+    ft_in_sensor_frame = ft_values;
 }
 
 void tool_vector_callback(const geometry_msgs::Vector3& tool_vector_msg_z) {
@@ -126,8 +121,8 @@ int main(int argc, char** argv) {
     MAX_VEL: The maximum velocity for translation (Used for cartP2P) in m/s
     MAX_ANG: The maximum angular velocity for rotation (Used for cartP2P) in rad/s
     */
-    double PULL_DISTANCE = 0.012, KEEP_CONTACT_DISTANCE = 0.0075, DT = 0.01, FORCE_THRESHOLD = 12, TARGET_DISTANCE = 0.05; 
-    double NONDIRECTIONAL_FORCE_THRESHOLD = 20, KEEP_CUTTING_DISTANCE = 0, MAX_VEL = 0.01, MAX_ANG = 0.2; 
+    double PULL_DISTANCE = 0.012, KEEP_CONTACT_DISTANCE = 0.0075, DT = 0.01, FORCE_THRESHOLD = 12, ROTATION_ERROR_THRESHOLD = 0.03; 
+    double NONDIRECTIONAL_FORCE_THRESHOLD = 20, KEEP_CUTTING_DISTANCE = 0, MAX_VEL = 0.01, MAX_ANG = 0.2, TRANSLATION_ERROR_THRESHOLD = 0.001; 
     //! These names may want to change
     double x = 0, y = 0, z = 0;
     double psi = 0, theta = 0, phi = 0; 
@@ -288,7 +283,7 @@ int main(int argc, char** argv) {
     // With labeled parameter, now call service to send message that program will start
     //TODO update this message
     std::ostringstream request_status; 
-    request_status << "target_distance " << TARGET_DISTANCE << "m";
+    // request_status << "target_distance " << TARGET_DISTANCE << "m";
 
     srv.request.status = request_status.str();
 
@@ -322,7 +317,12 @@ int main(int argc, char** argv) {
     start_pose_quat.z() = current_pose.orientation.z;
     start_pose_quat.w() = current_pose.orientation.w;
 
-
+    Eigen::Quaterniond current_pose_quat;
+    current_pose_quat.x() = current_pose.orientation.x;
+    current_pose_quat.y() = current_pose.orientation.y;
+    current_pose_quat.z() = current_pose.orientation.z;
+    current_pose_quat.w() = current_pose.orientation.w;
+    
     //TODO Task is set to false, need to update to use task frame with cartp2p, other values are also removed here
     task = false;
     KEEP_CONTACT_DISTANCE = 0;
@@ -339,6 +339,7 @@ int main(int argc, char** argv) {
         delta_trans_vec.y = y;
         delta_trans_vec.z = z;
     }
+    // cout<<"Input Delta Vector"<<endl<<delta_trans_vec<<endl;
 
     //TODO Calculate the end pose here based on the input, take the relative change and add it in the tool frame,
     //TODO if we use interactive markers in rviz, use that to get ending pos
@@ -358,13 +359,13 @@ int main(int argc, char** argv) {
     // Take the delta input from the gui to rotate.
     // MATH: Define the rotation matrix to the destination
     //! Angles are x: psi, y: theta, z: phi
-    Eigen::Matrix3d TO_DESTINATION_ROTATION_MATRIX; //! Confirm that this rotation calculation is correct, seems off. Can be fixed easily
-    TO_DESTINATION_ROTATION_MATRIX(0,0) = cos(theta)*cos(phi);
-    TO_DESTINATION_ROTATION_MATRIX(0,1) = (sin(psi)*sin(theta)*sin(phi)) - (cos(psi)*sin(phi));
-    TO_DESTINATION_ROTATION_MATRIX(0,2) = (cos(psi)*sin(theta)*sin(phi)) - (sin(psi)*cos(phi)); 
-    TO_DESTINATION_ROTATION_MATRIX(1,0) = cos(theta)*sin(phi);
-    TO_DESTINATION_ROTATION_MATRIX(1,1) = (sin(psi)*sin(theta)*sin(phi)) + (cos(psi)*cos(phi));
-    TO_DESTINATION_ROTATION_MATRIX(1,2) = (cos(psi)*sin(theta)*sin(phi)) - (sin(psi)*cos(phi)); 
+    Eigen::Matrix3d TO_DESTINATION_ROTATION_MATRIX; 
+    TO_DESTINATION_ROTATION_MATRIX(0,0) = cos(theta) * cos(phi);
+    TO_DESTINATION_ROTATION_MATRIX(0,1) = (sin(psi) * sin(theta) * cos(phi)) - (cos(psi) * sin(phi));
+    TO_DESTINATION_ROTATION_MATRIX(0,2) = (cos(psi) * sin(theta) * cos(phi)) + (sin(psi) * sin(phi)); 
+    TO_DESTINATION_ROTATION_MATRIX(1,0) = cos(theta) * sin(phi);
+    TO_DESTINATION_ROTATION_MATRIX(1,1) = (sin(psi) * sin(theta) * sin(phi)) + (cos(psi) * cos(phi));
+    TO_DESTINATION_ROTATION_MATRIX(1,2) = (cos(psi) * sin(theta) * sin(phi)) - (sin(psi) * cos(phi)); 
     TO_DESTINATION_ROTATION_MATRIX(2,0) = -sin(theta);
     TO_DESTINATION_ROTATION_MATRIX(2,1) = sin(psi) * cos(theta);
     TO_DESTINATION_ROTATION_MATRIX(2,2) = cos(psi) * cos(theta);
@@ -444,17 +445,13 @@ int main(int argc, char** argv) {
     //TODO Update goal reached exit condition to include orientation
     // Dot product, uf the value is above 0, we hit the target movement
     double dot_product = vector_to_goal.x * delta_trans_vec_norm.x + vector_to_goal.y * delta_trans_vec_norm.y + vector_to_goal.z * delta_trans_vec_norm.z;
-    
+    double goal_dist = sqrt(pow(vector_to_goal.x,2) + pow(vector_to_goal.y,2) + pow(vector_to_goal.z,2));
     // If it is past the plane perpendicular to the direction of movement at the goal position, then we have reached the position
     // If the rotation is within some amount, then we have reached the rotation, and if both are true, then we have reached the target 
     bool target_reached, pos_reached, rot_reached;
 
-    if(TARGET_DISTANCE < 0){
-        pos_reached = dot_product >= 0;
-    }
-    else {
-        pos_reached = dot_product <= 0;
-    }
+    pos_reached = goal_dist <= TRANSLATION_ERROR_THRESHOLD;
+    rot_reached = current_pose_quat.isApprox(end_pose_quat, ROTATION_ERROR_THRESHOLD);
 
     target_reached = pos_reached && rot_reached;
 
@@ -466,6 +463,9 @@ int main(int argc, char** argv) {
     // Output for whether we are frozen or not
     cout<<"Freeze status: "<<freeze_mode<<endl<<"Freeze message: "<<freeze_mode_status<<endl<<endl;
 
+    int temple = 0;
+    cout << "Before loop";
+    cin >> temple;
     // ROS_INFO(freeze_mode_status);
 
     // Loop variable to check effort limit condition
@@ -495,9 +495,16 @@ int main(int argc, char** argv) {
 
     // Add condition for if it is in freeze mode (should be unfrozen before this step above, at definitions of services and publishers)
     // TODO add cojndition of when the command is done interpolating, update the goal reached
-    while( (loops_so_far <= total_number_of_loops) && !effort_limit_crossed && !target_reached && !freeze_mode) {
+    while( (loops_so_far <= total_number_of_loops) && !effort_limit_crossed && !target_reached) { // && !freeze_mode) {
         // ROS: for communication between programs
         ros::spinOnce();
+        cout << "Press enter to continue";
+        cin >> temple;
+        // Update values for goal checks 
+        current_pose_quat.x() = current_pose.orientation.x;
+        current_pose_quat.y() = current_pose.orientation.y;
+        current_pose_quat.z() = current_pose.orientation.z;
+        current_pose_quat.w() = current_pose.orientation.w;
 
         // Add translation interpolation (maybe want to instead add the advancement to the starting pose, rather than the end)
         virtual_attractor.pose.position.x = virtual_attractor.pose.position.x + delta_trans_vec.x;
@@ -524,16 +531,16 @@ int main(int argc, char** argv) {
         // Check rotation
 
         // Dot product, if the value is above 0, we hit the target movement
-        double dot_product = vector_to_goal.x * delta_trans_vec_norm.x + vector_to_goal.y * delta_trans_vec_norm.y + vector_to_goal.z * delta_trans_vec_norm.z;
+        dot_product = vector_to_goal.x * delta_trans_vec_norm.x + vector_to_goal.y * delta_trans_vec_norm.y + vector_to_goal.z * delta_trans_vec_norm.z;
+        goal_dist = sqrt(pow(vector_to_goal.x,2) + pow(vector_to_goal.y,2) + pow(vector_to_goal.z,2));
         
         //TODO Update to match earlier check
         // If it is past the plane perpendicular to the direction of movement at the goal position, then we have reached the target 
-        if(TARGET_DISTANCE < 0){
-            target_reached = dot_product >= 0;
-        }
-        else {
-            target_reached = dot_product <= 0;
-        }
+        pos_reached = dot_product <= 0; //! Check the signs here
+        pos_reached = goal_dist <= TRANSLATION_ERROR_THRESHOLD;
+        rot_reached = current_pose_quat.isApprox(end_pose_quat, ROTATION_ERROR_THRESHOLD);
+
+        target_reached = pos_reached && rot_reached;
 
         // Update the values for the loop condition
         //TODO update these to be in sensor frame? 
@@ -593,18 +600,18 @@ int main(int argc, char** argv) {
         ros::spinOnce();
 
         // Keep the virtual attractor slightly below the surface, or above if pulling back
-        virtual_attractor.pose = current_pose;
-        if(TARGET_DISTANCE > 0){
-            virtual_attractor.pose.position.x = current_pose.position.x + tool_vector_z.x * KEEP_CONTACT_DISTANCE;
-            virtual_attractor.pose.position.y = current_pose.position.y + tool_vector_z.y * KEEP_CONTACT_DISTANCE;
-            virtual_attractor.pose.position.z = current_pose.position.z + tool_vector_z.z * KEEP_CONTACT_DISTANCE;
-        }
-        // Pull up in the direction of the tool
-        else {
-            virtual_attractor.pose.position.x = current_pose.position.x - tool_vector_z.x * KEEP_CONTACT_DISTANCE;
-            virtual_attractor.pose.position.y = current_pose.position.y - tool_vector_z.y * KEEP_CONTACT_DISTANCE;
-            virtual_attractor.pose.position.z = current_pose.position.z - tool_vector_z.z * KEEP_CONTACT_DISTANCE;
-        }
+        // virtual_attractor.pose = current_pose;
+        // if(TARGET_DISTANCE > 0){
+        //     virtual_attractor.pose.position.x = current_pose.position.x + tool_vector_z.x * KEEP_CONTACT_DISTANCE;
+        //     virtual_attractor.pose.position.y = current_pose.position.y + tool_vector_z.y * KEEP_CONTACT_DISTANCE;
+        //     virtual_attractor.pose.position.z = current_pose.position.z + tool_vector_z.z * KEEP_CONTACT_DISTANCE;
+        // }
+        // // Pull up in the direction of the tool
+        // else {
+        //     virtual_attractor.pose.position.x = current_pose.position.x - tool_vector_z.x * KEEP_CONTACT_DISTANCE;
+        //     virtual_attractor.pose.position.y = current_pose.position.y - tool_vector_z.y * KEEP_CONTACT_DISTANCE;
+        //     virtual_attractor.pose.position.z = current_pose.position.z - tool_vector_z.z * KEEP_CONTACT_DISTANCE;
+        // }
         // Wait for some time, then go to a freeze
 
     }

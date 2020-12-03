@@ -436,10 +436,10 @@ class Application(tk.Frame):
         print(x,y,z,rot_x,rot_y,rot_z)
         
         command = \
-            'rosrun behavior_algorithms ptwl_cartp2p _trans_x:={0} _trans_y:={1} _trans_z:={2} _rot_x:={3} _rot_y:={4} _rot_z:={5}'.format(x,y,z,rot_x,rot_y,rot_z)
+            'rosrun behavior_algorithms ptwl_cartp2p _trans_x:={0} _trans_y:={1} _trans_z:={2} _rot_x:={3} _rot_y:={4} _rot_z:={5} _param_set:={6}'.format(x,y,z,rot_x,rot_y,rot_z,self.parameter_set.get())
         
 
-        # print(command)
+        print(command)
 
         time.sleep(delay_len)
         os.system(command)
