@@ -27,7 +27,11 @@ geometry_msgs::Wrench ft_in_robot_frame;
 geometry_msgs::Wrench ft_in_sensor_frame; //TODO implement this, is this the correct data type to store this in?
 // Eigen::VectorXd ft_in_sensor_frame = Eigen::VectorXd::Zero(6);
 
+geometry_msgs::Vector3 tool_vector_x;
+geometry_msgs::Vector3 tool_vector_y;
 geometry_msgs::Vector3 tool_vector_z;
+geometry_msgs::Vector3 task_vector_x;
+geometry_msgs::Vector3 task_vector_y;
 geometry_msgs::Vector3 task_vector_z;
 
 std_msgs::Int8 freeze_mode_status;
@@ -51,10 +55,27 @@ void ft_sensor_callback(const geometry_msgs::Wrench &ft_values){
     ft_in_sensor_frame = ft_values;
 }
 
-void tool_vector_callback(const geometry_msgs::Vector3& tool_vector_msg_z) {
+void tool_vector_x_callback(const geometry_msgs::Vector3& tool_vector_msg_x) {
+    tool_vector_x = tool_vector_msg_x;
+}
+
+void tool_vector_y_callback(const geometry_msgs::Vector3& tool_vector_msg_y) {
+    tool_vector_y = tool_vector_msg_y;
+}
+
+void tool_vector_z_callback(const geometry_msgs::Vector3& tool_vector_msg_z) {
     tool_vector_z = tool_vector_msg_z;
 }
-void task_vector_callback(const geometry_msgs::Vector3& task_vector_msg_z) {
+
+void task_vector_x_callback(const geometry_msgs::Vector3& task_vector_msg_x) {
+    task_vector_x = task_vector_msg_x;
+}
+
+void task_vector_y_callback(const geometry_msgs::Vector3& task_vector_msg_y) {
+    task_vector_y = task_vector_msg_y;
+}
+
+void task_vector_z_callback(const geometry_msgs::Vector3& task_vector_msg_z) {
     task_vector_z = task_vector_msg_z;
 }
 
@@ -70,7 +91,7 @@ void freeze_status_callback(const std_msgs::Int8& freeze_status_msg) {
 // ROS: main program
 int main(int argc, char** argv) {
     // ROS: for communication between programs
-    ros::init(argc,argv,"simple_move_until_touch");
+    ros::init(argc,argv,"CartP2PTWL");
     ros::NodeHandle nh;
 
     // ROS: Define subscribers and publishers used
@@ -80,8 +101,12 @@ int main(int argc, char** argv) {
     ros::Subscriber cartesian_state_subscriber = nh.subscribe("cartesian_logger",1, cartesian_state_callback); // subscribe to the topic publishing the cartesian state of the end effector
     ros::Subscriber ft_subscriber = nh.subscribe("transformed_ft_wrench",1,ft_callback);                       // subscribe to the force/torque sensor data
     ros::Subscriber ft_sensor_sub = nh.subscribe("robotiq_ft_wrench", 1, ft_sensor_callback);                  // ROS: Subscribe to the force-torque sensor wrench
-    ros::Subscriber tool_vector_sub_z = nh.subscribe("tool_vector_z", 1, tool_vector_callback);                // subscribe to the value of the tool vector in the z, published from the accomodation controller
-    ros::Subscriber task_vector_sub_z = nh.subscribe("task_vector_z",1,task_vector_callback);                  // subscribe to the value of the task vector in the z, published from the accomodation controller
+    ros::Subscriber tool_vector_sub_x = nh.subscribe("tool_vector_x", 1, tool_vector_x_callback);                // subscribe to the value of the tool vector in the z, published from the accomodation controller
+    ros::Subscriber tool_vector_sub_y = nh.subscribe("tool_vector_y", 1, tool_vector_y_callback);                // subscribe to the value of the tool vector in the z, published from the accomodation controller
+    ros::Subscriber tool_vector_sub_z = nh.subscribe("tool_vector_z", 1, tool_vector_z_callback);                // subscribe to the value of the tool vector in the z, published from the accomodation controller
+    ros::Subscriber task_vector_sub_x = nh.subscribe("task_vector_x",1,task_vector_x_callback);                  // subscribe to the value of the task vector in the z, published from the accomodation controller
+    ros::Subscriber task_vector_sub_y = nh.subscribe("task_vector_y",1,task_vector_y_callback);                  // subscribe to the value of the task vector in the z, published from the accomodation controller
+    ros::Subscriber task_vector_sub_z = nh.subscribe("task_vector_z",1,task_vector_z_callback);                  // subscribe to the value of the task vector in the z, published from the accomodation controller
     ros::Publisher virtual_attractor_publisher = nh.advertise<geometry_msgs::PoseStamped>("Virt_attr_pose",1); // publish the pose of the virtual attractor for the accomodation controller 
 
     // ROS: Services used in conjunction with buffer.cpp to have delayed program status sent to operator
@@ -104,6 +129,7 @@ int main(int argc, char** argv) {
     //ROS: Service for toggling freeze mode
     irb120_accomodation_control::freeze_service freeze_srv;
 
+    ROS_INFO("after setup");
     /*
     How to tune params:
     PULL_DISTANCE: By increasing this, the virtual force is greater, and decreasing decreases it
@@ -153,21 +179,22 @@ int main(int argc, char** argv) {
     //? make sure this works, sometimes it has issues if alread frozen, will spin once to check the data
     // Check here after a spin, and unfreeze if it is frozen, 
     while(freeze_mode_status.data == 1 && freeze_mode){
-        ros::spinOnce();
-        naptime.sleep();
+        // ros::spinOnce();
+        // naptime.sleep();
 
         if(freeze_client.call(freeze_srv)){
             // success
             cout<<"Called freeze mode service succesfully"<<endl;
-            freeze_updated = true;
+            // freeze_updated = true;
         }
         else{
             // failed to call service
-            ROS_ERROR("Failed to call freeze service");
-            freeze_updated = false;
+            cout<<"Failed to call freeze service";
+            // freeze_updated = false;
         }
         ros::spinOnce();
         naptime.sleep();
+        freeze_updated = false;
 
     }
     
@@ -184,7 +211,7 @@ int main(int argc, char** argv) {
     // should now be unfrozen
 
     // The end effector pose (current_pose) and force torque data (ft_in_robot_frame) are global variables.
-    
+    ROS_INFO("Before Reading params");
     // ROS: Get parameter passed in 
     nh.param("/CartP2PTWL/trans_x", x, 0.0); //! Convert to target pos and orient
     nh.param("/CartP2PTWL/trans_y", y, 0.0);
@@ -202,8 +229,10 @@ int main(int argc, char** argv) {
     nh.deleteParam("/CartP2PTWL/rot_x"); 
     nh.deleteParam("/CartP2PTWL/rot_z"); 
     nh.deleteParam("/CartP2PTWL/rot_y"); 
+
     nh.deleteParam("/CartP2PTWL/param_set");
 
+    ROS_INFO("after reading and deleting params");
     // Here, the values for PULL_DISTANCE and FORCE_THRESHOLD are changed according to what setting the GUI is on for the appropriate task
     if(!strcmp(param_set.c_str(), "Peg")){
         // set the new values here
@@ -276,7 +305,7 @@ int main(int argc, char** argv) {
         ROS_INFO("Params set for TASK");
     }
     //TODO ADD PARAM FOR TOOL EXCHANGE
-
+    ROS_INFO("after storing params");
 
     // ROS_INFO("Output from parameter for target_distance; %f", TARGET_DISTANCE); 
 
@@ -334,10 +363,10 @@ int main(int argc, char** argv) {
         delta_trans_vec = task_vector_z;
     }
     else{
-        // The values from the parameters are stored here
-        delta_trans_vec.x = x;
-        delta_trans_vec.y = y;
-        delta_trans_vec.z = z;
+        // The values from the parameters are stored here, scale the tool vecs, then add them together to get the delta vec
+        delta_trans_vec.x = (x * tool_vector_x.x) + (y * tool_vector_y.x) + (z * tool_vector_z.x);
+        delta_trans_vec.y = (x * tool_vector_x.y) + (y * tool_vector_y.y) + (z * tool_vector_z.y);
+        delta_trans_vec.z = (x * tool_vector_x.z) + (y * tool_vector_y.z) + (z * tool_vector_z.z);
     }
     // cout<<"Input Delta Vector"<<endl<<delta_trans_vec<<endl;
 
@@ -350,7 +379,7 @@ int main(int argc, char** argv) {
     // 
     //! Populate and update end position and rotation stuff, either callback to the Interactive Markers
     // Change this value to 
-    geometry_msgs::Vector3 ending_position;
+    geometry_msgs::Vector3 ending_position; 
     ending_position.x = start_position.x + delta_trans_vec.x;
     ending_position.y = start_position.y + delta_trans_vec.y;
     ending_position.z = start_position.z + delta_trans_vec.z;
@@ -424,7 +453,10 @@ int main(int argc, char** argv) {
     // Length of the run
     //TODO send this information to be printed in some service? 
     double run_length = n_steps * DT;
-    ROS_INFO("Runtime Length: %f", run_length); // might want to do a cout
+    cout<<"Runtime Length: "<<run_length<<endl;
+    // ROS_INFO("Runtime Length: %f", run_length); // might want to do a cout
+    cout<<"Number of Loops: "<<n_steps<<endl;
+    // ROS_INFO("Number of Loops: %i", n_steps); // might want to do a cout
 
     // Scale the translation steps into the smaller sections to be added in each time step
     delta_trans_vec.x = vector_to_goal.x / n_steps;
@@ -444,7 +476,7 @@ int main(int argc, char** argv) {
 
     //TODO Update goal reached exit condition to include orientation
     // Dot product, uf the value is above 0, we hit the target movement
-    double dot_product = vector_to_goal.x * delta_trans_vec_norm.x + vector_to_goal.y * delta_trans_vec_norm.y + vector_to_goal.z * delta_trans_vec_norm.z;
+    // double dot_product = vector_to_goal.x * delta_trans_vec_norm.x + vector_to_goal.y * delta_trans_vec_norm.y + vector_to_goal.z * delta_trans_vec_norm.z;
     double goal_dist = sqrt(pow(vector_to_goal.x,2) + pow(vector_to_goal.y,2) + pow(vector_to_goal.z,2));
     // If it is past the plane perpendicular to the direction of movement at the goal position, then we have reached the position
     // If the rotation is within some amount, then we have reached the rotation, and if both are true, then we have reached the target 
@@ -458,13 +490,14 @@ int main(int argc, char** argv) {
     // Debug output
     cout<<"Tool Vector Z"<<endl<<tool_vector_z<<endl;
     cout<<"Difference Vector"<<endl<<vector_to_goal<<endl;
-    cout<<"Dot Product"<<endl<<dot_product<<endl<<endl;
+    cout<<"Distance to Goal"<<endl<<goal_dist<<endl<<endl;
 
     // Output for whether we are frozen or not
     cout<<"Freeze status: "<<freeze_mode<<endl<<"Freeze message: "<<freeze_mode_status<<endl<<endl;
 
     int temple = 0;
-    cout << "Before loop";
+    // ROS_INFO("Before loop");
+    cout << "Before loop (enter any number to continue): ";
     cin >> temple;
     // ROS_INFO(freeze_mode_status);
 
@@ -498,8 +531,8 @@ int main(int argc, char** argv) {
     while( (loops_so_far <= total_number_of_loops) && !effort_limit_crossed && !target_reached) { // && !freeze_mode) {
         // ROS: for communication between programs
         ros::spinOnce();
-        cout << "Press enter to continue";
-        cin >> temple;
+        // cout << "Press enter to continue";
+        // cin >> temple;
         // Update values for goal checks 
         current_pose_quat.x() = current_pose.orientation.x;
         current_pose_quat.y() = current_pose.orientation.y;
@@ -512,7 +545,7 @@ int main(int argc, char** argv) {
         virtual_attractor.pose.position.z = virtual_attractor.pose.position.z + delta_trans_vec.z;
 
         // Advance rotation interpolation
-        theta_interp = (loops_so_far + 1) * dtheta;
+        theta_interp = (loops_so_far + 1) * dtheta; //! This is wrong, needs to be transformed properly (maybe be based off of start, or change the initial TF)
         R_change_interp = Eigen::AngleAxisd(theta_interp, k_rot_axis);
         R_interp = R_change_interp * R_start;
 
@@ -531,12 +564,12 @@ int main(int argc, char** argv) {
         // Check rotation
 
         // Dot product, if the value is above 0, we hit the target movement
-        dot_product = vector_to_goal.x * delta_trans_vec_norm.x + vector_to_goal.y * delta_trans_vec_norm.y + vector_to_goal.z * delta_trans_vec_norm.z;
+        // dot_product = vector_to_goal.x * delta_trans_vec_norm.x + vector_to_goal.y * delta_trans_vec_norm.y + vector_to_goal.z * delta_trans_vec_norm.z;
         goal_dist = sqrt(pow(vector_to_goal.x,2) + pow(vector_to_goal.y,2) + pow(vector_to_goal.z,2));
-        
+
         //TODO Update to match earlier check
         // If it is past the plane perpendicular to the direction of movement at the goal position, then we have reached the target 
-        pos_reached = dot_product <= 0; //! Check the signs here
+        // pos_reached = dot_product <= 0; //! Check the signs here
         pos_reached = goal_dist <= TRANSLATION_ERROR_THRESHOLD;
         rot_reached = current_pose_quat.isApprox(end_pose_quat, ROTATION_ERROR_THRESHOLD);
 
@@ -551,7 +584,7 @@ int main(int argc, char** argv) {
 
         // Debug output
         cout<<"Difference Vector"<<endl<<vector_to_goal<<endl;
-        cout<<"Dot Product"<<endl<<dot_product<<endl<<endl;
+        cout<<"Distance to Goal"<<endl<<goal_dist<<endl<<endl;
 
         // ROS: for communication between programs
         virtual_attractor_publisher.publish(virtual_attractor);
@@ -637,6 +670,10 @@ int main(int argc, char** argv) {
         srv.request.status = "Timed out";
         // ROS: for communication between programs
         ros::spinOnce();
+
+        // we want to sleep here in compliance for some time
+        cout<<"Loop completed, timer to settle of 5 seconds"<<endl;
+        ros::Duration(5).sleep();
 
         // Put the virtual attractor at the end effector
         virtual_attractor.pose = current_pose;

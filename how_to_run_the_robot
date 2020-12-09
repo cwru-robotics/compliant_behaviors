@@ -36,6 +36,7 @@ Computer:
 
 	e. Start the accomodation controller:
 	rosrun irb120_accomodation_control accommodation_controller
+	rosrun irb120_accomodation_control freeze_mode_accommodation_controller
 	
 	f. Start the plot data delay:
 	rosrun irb120_accomodation_control buffer
