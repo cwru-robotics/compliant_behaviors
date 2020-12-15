@@ -54,10 +54,14 @@ Cut out a "door" 3 of 4 parts of a rectangle and then open the door with the too
 
 ---- New TODO Post NASA ----
 
-Update code to allow for PTWL to follow preplanned trajectory
-
-Make sure that the math works
-
-Move repo to a separate account and make it private
-
-
+Fix rotations for CartP2PTWL
+    - Seems as though the rotations are in the wrong frame, but I don't know where it could be, reverify all math for rotations alone
+        - confirm the rotation matrix, and input angles
+        - the angle axis calculation for interpolation
+        - the order of multiplication for the goal check and the interpolation
+        - do we want to rotate from the start or just add a small delta rotation at each time step (may be easier than adding some delta)
+    - The attractor also does weird repositionings upong going into a position hold
+    - Seems that the Y axis works correctly, 
+Add network access while controlling robot
+Data Collection
+State Machine

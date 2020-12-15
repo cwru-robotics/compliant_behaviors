@@ -11,6 +11,7 @@
 #include <geometry_msgs/Pose.h>
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/Wrench.h>
+#include <geometry_msgs/WrenchStamped.h>
 #include <Eigen/QR>
 #include <Eigen/Dense>
 #include <std_msgs/Float64.h>
@@ -24,7 +25,7 @@ geometry_msgs::Pose current_pose;
 geometry_msgs::PoseStamped virtual_attractor;
 geometry_msgs::Wrench ft_in_robot_frame;
 
-geometry_msgs::Wrench ft_in_sensor_frame; //TODO implement this, is this the correct data type to store this in?
+geometry_msgs::WrenchStamped ft_in_sensor_frame; //TODO implement this, is this the correct data type to store this in?
 // Eigen::VectorXd ft_in_sensor_frame = Eigen::VectorXd::Zero(6);
 
 geometry_msgs::Vector3 tool_vector_x;
@@ -50,9 +51,18 @@ void ft_callback(const geometry_msgs::Wrench& ft_values) {
 }
 
 // For use for exit wrench conditions
-void ft_sensor_callback(const geometry_msgs::Wrench &ft_values){
+void ft_sensor_callback(const geometry_msgs::WrenchStamped &ft_values){
     // These are not values from the sensor. They are f/t values transformed into robot base frame.
     ft_in_sensor_frame = ft_values;
+
+    /* To add this for smoother values? 
+    wrench_body_coords_(0) = std::round(ft_sensor.wrench.force.x * 10) / 10;
+	wrench_body_coords_(1) = std::round(ft_sensor.wrench.force.y * 10) / 10;
+	wrench_body_coords_(2) = std::round(ft_sensor.wrench.force.z * 10) / 10;
+	wrench_body_coords_(3) = std::round(ft_sensor.wrench.torque.x * 10) / 10;
+	wrench_body_coords_(4) = std::round(ft_sensor.wrench.torque.y * 10) / 10;
+	wrench_body_coords_(5) = std::round(ft_sensor.wrench.torque.z * 10) / 10;
+    */
 }
 
 void tool_vector_x_callback(const geometry_msgs::Vector3& tool_vector_msg_x) {
@@ -217,8 +227,8 @@ int main(int argc, char** argv) {
     nh.param("/CartP2PTWL/trans_y", y, 0.0);
     nh.param("/CartP2PTWL/trans_z", z, 0.0);
     nh.param("/CartP2PTWL/rot_x", psi, 0.0);
-    nh.param("/CartP2PTWL/rot_z", theta, 0.0);
-    nh.param("/CartP2PTWL/rot_y", phi, 0.0);
+    nh.param("/CartP2PTWL/rot_y", theta, 0.0);
+    nh.param("/CartP2PTWL/rot_z", phi, 0.0);
     
     nh.param<std::string>("/CartP2PTWL/param_set", param_set, "Tool");
 
@@ -227,8 +237,8 @@ int main(int argc, char** argv) {
     nh.deleteParam("/CartP2PTWL/trans_y"); 
     nh.deleteParam("/CartP2PTWL/trans_z"); 
     nh.deleteParam("/CartP2PTWL/rot_x"); 
-    nh.deleteParam("/CartP2PTWL/rot_z"); 
     nh.deleteParam("/CartP2PTWL/rot_y"); 
+    nh.deleteParam("/CartP2PTWL/rot_z"); 
 
     nh.deleteParam("/CartP2PTWL/param_set");
 
@@ -399,22 +409,27 @@ int main(int argc, char** argv) {
     TO_DESTINATION_ROTATION_MATRIX(2,1) = sin(psi) * cos(theta);
     TO_DESTINATION_ROTATION_MATRIX(2,2) = cos(psi) * cos(theta);
 
-
+    ROS_INFO_STREAM(TO_DESTINATION_ROTATION_MATRIX);
     // ROTATION
     Eigen::Vector3d k_rot_axis;
 
     Eigen::Matrix3d R_start, R_end, R_change, R_change_interp, R_interp;
     R_start = start_pose_quat.normalized().toRotationMatrix(); // current tool pose, convert to rotation
 
+    // Initial R_interp is the starting rotation, each delta added:
+    R_interp = R_start;
+
     // Take the start rotation, apply the desired rotation to calculate the final rotation matrix
-    R_end = start_pose_quat * TO_DESTINATION_ROTATION_MATRIX; // I feel this math may need to be flipped, but it seems to check based on OTEL
+    
+    R_end = start_pose_quat * TO_DESTINATION_ROTATION_MATRIX; // I feel this math may need to be flipped, but it seems to check based on OTEL (rotation in tool frame)
+    // R_end = TO_DESTINATION_ROTATION_MATRIX * start_pose_quat; // Double check here, this was swapped
 
     //? Below line is used if we have the end pose given to us, here we do not and thus must calculate it above
     // R_end = end_pose_quat.normalized().toRotationMatrix(); // end pose, convert to rotation 
 
     //TODO get the orientation input, needs to be updated
     Eigen::Quaterniond end_pose_quat(R_end);
-    //R_end = R_change*R_start
+    //R_end = R_change*R_start //! This is reversed compared to above
     R_change = TO_DESTINATION_ROTATION_MATRIX; 
     Eigen::AngleAxisd angleAxis(R_change); //convert rotation matrix to angle/axis
 
@@ -491,6 +506,8 @@ int main(int argc, char** argv) {
     cout<<"Tool Vector Z"<<endl<<tool_vector_z<<endl;
     cout<<"Difference Vector"<<endl<<vector_to_goal<<endl;
     cout<<"Distance to Goal"<<endl<<goal_dist<<endl<<endl;
+    // cout<<"Current Orientation "<<endl<<current_pose_quat<<endl;
+    // cout<<"Goal Orientation "<<endl<<end_pose_quat<<endl<<endl;
 
     // Output for whether we are frozen or not
     cout<<"Freeze status: "<<freeze_mode<<endl<<"Freeze message: "<<freeze_mode_status<<endl<<endl;
@@ -546,8 +563,15 @@ int main(int argc, char** argv) {
 
         // Advance rotation interpolation
         theta_interp = (loops_so_far + 1) * dtheta; //! This is wrong, needs to be transformed properly (maybe be based off of start, or change the initial TF)
-        R_change_interp = Eigen::AngleAxisd(theta_interp, k_rot_axis);
-        R_interp = R_change_interp * R_start;
+        // R_change_interp = Eigen::AngleAxisd(theta_interp, k_rot_axis);
+        
+        // R_interp = R_change_interp * R_start; // maybe swap this
+
+        // R_interp = R_start * R_change_interp; // Swapped to match initial end check, rotation in tool frame not base
+        
+        // New method, add to previous interpolated rotation
+        R_change_interp = Eigen::AngleAxisd(dtheta, k_rot_axis);
+        R_interp = R_interp * R_change_interp; // where R_interp is the previous rotation matrix in base frame
 
         // Update the rotation of the virtual attractor
         Eigen::Quaterniond new_virtual_attractor_quat(R_interp);
@@ -672,8 +696,8 @@ int main(int argc, char** argv) {
         ros::spinOnce();
 
         // we want to sleep here in compliance for some time
-        cout<<"Loop completed, timer to settle of 5 seconds"<<endl;
-        ros::Duration(5).sleep();
+        cout<<"Loop completed, timer to settle of 10 seconds"<<endl;
+        ros::Duration(10).sleep();
 
         // Put the virtual attractor at the end effector
         virtual_attractor.pose = current_pose;

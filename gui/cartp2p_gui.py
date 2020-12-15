@@ -35,7 +35,7 @@ class Application(tk.Frame):
         # self.hi_there["command"] = self.say_hi
         # self.hi_there.pack(side="top")
 
-        self.master.title('Skills GUI')
+        self.master.title('CartP2P GUI')
         self.tab_control = ttk.Notebook(self.master)
         self.motion_control = ttk.Frame(self.tab_control)
         self.wiggle_control = ttk.Frame(self.tab_control)
