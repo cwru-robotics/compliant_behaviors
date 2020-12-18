@@ -15,7 +15,8 @@ bool jnt_cmd = true, cart_cmd = false;
 geometry_msgs::Pose g_des_pose;
 geometry_msgs::Twist g_des_twist;
 
-vector<double> home_vec{0,-48,24,0,22,0}; // Pencil and knife starting position
+vector<double> home_vec{0,-48,16,0,30,0}; // Tool exchange with quick connect
+// vector<double> home_vec{0,-48,24,0,22,0}; // Pencil and knife starting position
 //vector<double> home_vec{0,-40,8,0,30,0}; // Pencil and knife starting position OLD 
 //vector<double> home_vec{0,-35,8,0,25,0}; // Validation move until touch
 // vector<double> home_vec{0,-25,8,0,15,0}; // Validation rotate until torque
