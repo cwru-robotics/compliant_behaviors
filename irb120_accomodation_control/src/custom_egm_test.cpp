@@ -162,7 +162,7 @@ int main(int argc, char** argv) {
 	struct timeval timeout;
 	timeout.tv_sec = 2;
 	timeout.tv_usec = 0;
-	const unsigned short port_number = 6510;
+	const unsigned short port_number = 6510; //5515;
 	const unsigned short port_number_robot = 64007;
 	memset(&serv_addr, 0, sizeof(serv_addr));
 	
@@ -171,7 +171,8 @@ int main(int argc, char** argv) {
 	serv_addr.sin_port = htons(port_number);
 	
 	client_addr.sin_family = AF_INET;
-	client_addr.sin_addr.s_addr = inet_addr("192.168.125.1");
+	//! client_addr.sin_addr.s_addr = inet_addr("192.168.125.1"); //OLD IP (hard wired)
+	client_addr.sin_addr.s_addr = inet_addr("129.22.148.71"); // Replace the IP addr here (if this works)
 	//client_addr.sin_port = htons(port_number_robot);
 	
 

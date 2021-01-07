@@ -186,21 +186,20 @@ int main(int argc, char** argv) {
         naptime.sleep();
     }
     
-    //? make sure this works, sometimes it has issues if alread frozen, will spin once to check the data
-    // Check here after a spin, and unfreeze if it is frozen, 
-    while(freeze_mode_status.data == 1 && freeze_mode){
-        // ros::spinOnce();
-        // naptime.sleep();
+    cout<<freeze_mode_status<<endl;
+    cout<<freeze_srv.response<<endl;
 
-        if(freeze_client.call(freeze_srv)){
+    
+    // Check here after a spin, and unfreeze if it is frozen
+    while(freeze_mode_status.data == 1 && freeze_mode){
+        
+        if(freeze_updated && freeze_client.call(freeze_srv)){
             // success
             cout<<"Called freeze mode service succesfully"<<endl;
-            // freeze_updated = true;
         }
         else{
             // failed to call service
-            cout<<"Failed to call freeze service";
-            // freeze_updated = false;
+            ROS_ERROR("Failed to call freeze service");
         }
         ros::spinOnce();
         naptime.sleep();
@@ -697,7 +696,7 @@ int main(int argc, char** argv) {
 
         // we want to sleep here in compliance for some time
         cout<<"Loop completed, timer to settle of 10 seconds"<<endl;
-        ros::Duration(10).sleep();
+        ros::Duration(10).sleep(); //TODO change this to be a loop still checking the goal and while(ros::ok())
 
         // Put the virtual attractor at the end effector
         virtual_attractor.pose = current_pose;
