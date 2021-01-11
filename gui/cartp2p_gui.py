@@ -39,11 +39,11 @@ class Application(tk.Frame):
         self.tab_control = ttk.Notebook(self.master)
         self.motion_control = ttk.Frame(self.tab_control)
         self.wiggle_control = ttk.Frame(self.tab_control)
-        # self.misc_commands = ttk.Frame(self.tab_control)
+        self.rwe_control = ttk.Frame(self.tab_control)
 
         self.tab_control.add(self.motion_control, text='Motion Control')
         self.tab_control.add(self.wiggle_control, text='Dither Control')
-        # self.tab_control.add(self.misc_commands, text='Misc. Commands')
+        self.tab_control.add(self.rwe_control, text='RWE Control')
 
         # Pack and display the tabs
 
@@ -91,34 +91,34 @@ class Application(tk.Frame):
 
         # Force Moment Accomodation (Present in both motion and orientation control tabs)
         # MOTION CONTROL FMA
-        self.force_moment_acc_label = tk.Label(self.motion_control,
+        self.restore_wrench_eq_label = tk.Label(self.rwe_control,
                 text='Limp Mode:',
                 font='Courier 20 bold')
-        self.force_moment_acc_label.grid(row=5, column=1,
+        self.restore_wrench_eq_label.grid(row=5, column=1,
                 sticky=tk.NSEW, pady=5, padx=2)
 
-        self.force_moment_acc = tk.Button(self.motion_control,
+        self.restore_wrench_eq = tk.Button(self.rwe_control,
                 text='text in', fg='blue',
-                command=self.force_moment_acc, font='Courier 20 bold')
-        self.force_moment_acc.grid(row=5, column=2, sticky=tk.NSEW,
+                command=self.restore_wrench_eq, font='Courier 20 bold')
+        self.restore_wrench_eq.grid(row=5, column=2, sticky=tk.NSEW,
                                    pady=5, padx=2)
 
         # Preset Value 1
 
-        self.force_moment_acc_preset_1 = tk.Button(self.motion_control,
+        self.restore_wrench_eq_preset_1 = tk.Button(self.rwe_control,
                 text='10 sec', fg='blue',
-                command=self.force_moment_acc_preset_1,
+                command=self.restore_wrench_eq_preset_1,
                 font='Courier 20 bold')
-        self.force_moment_acc_preset_1.grid(row=5, column=4,
+        self.restore_wrench_eq_preset_1.grid(row=5, column=4,
                 sticky=tk.NSEW, pady=5, padx=2)
 
         # Preset Value 2
 
-        self.force_moment_acc_preset_2 = tk.Button(self.motion_control,
+        self.restore_wrench_eq_preset_2 = tk.Button(self.rwe_control,
                 text='5 sec', fg='blue',
-                command=self.force_moment_acc_preset_2,
+                command=self.restore_wrench_eq_preset_2,
                 font='Courier 20 bold')
-        self.force_moment_acc_preset_2.grid(row=5, column=3,
+        self.restore_wrench_eq_preset_2.grid(row=5, column=3,
                 sticky=tk.NSEW, pady=5, padx=2)
 
         # Cart P2P Label and Submission Button
@@ -139,14 +139,14 @@ class Application(tk.Frame):
                                                text='Trans in m',
                                                fg='green',
                                                font='Courier 20 bold')
-        self.trans_label.grid(row=2, column=0,
+        self.trans_label.grid(row=5, column=0,
                                          sticky=tk.NSEW, pady=5, padx=2)
 
         self.rot_label = tk.Label(self.motion_control,
                                                text='Rot in rads',
                                                fg='green',
                                                font='Courier 20 bold')
-        self.rot_label.grid(row=2, column=5,
+        self.rot_label.grid(row=5, column=5,
                                          sticky=tk.NSEW, pady=5, padx=2)
 
         # Labeled inputs for cartp2p
@@ -357,7 +357,8 @@ class Application(tk.Frame):
         self.entry.delete(0, 'end')
 
 
-    def force_moment_acc(self):
+    #! Change which file is called here, and add in params for which axes to preserve wrench
+    def restore_wrench_eq(self):
 
         # print("Here, i run a command using os, skill 2")
 
@@ -373,7 +374,7 @@ class Application(tk.Frame):
         os.system(command)  
         time.sleep(delay_len)
 
-    def force_moment_acc_preset_1(self):
+    def restore_wrench_eq_preset_1(self):
 
         # print("Here, i run a command using os, skill 2")
 
@@ -382,7 +383,7 @@ class Application(tk.Frame):
                   )  
         time.sleep(delay_len)
 
-    def force_moment_acc_preset_2(self):
+    def restore_wrench_eq_preset_2(self):
 
         # print("Here, i run a command using os, skill 1")
 

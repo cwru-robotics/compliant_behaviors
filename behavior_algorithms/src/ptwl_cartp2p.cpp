@@ -222,7 +222,7 @@ int main(int argc, char** argv) {
     // The end effector pose (current_pose) and force torque data (ft_in_robot_frame) are global variables.
     ROS_INFO("Before Reading params");
     // ROS: Get parameter passed in 
-    nh.param("/CartP2PTWL/trans_x", x, 0.0); //! Convert to target pos and orient
+    nh.param("/CartP2PTWL/trans_x", x, 0.0);
     nh.param("/CartP2PTWL/trans_y", y, 0.0);
     nh.param("/CartP2PTWL/trans_z", z, 0.0);
     nh.param("/CartP2PTWL/rot_x", psi, 0.0);
@@ -523,7 +523,7 @@ int main(int argc, char** argv) {
                                  (abs(ft_in_robot_frame.force.x) > FORCE_THRESHOLD) || (abs(ft_in_robot_frame.force.y) > NONDIRECTIONAL_FORCE_THRESHOLD) || (abs(ft_in_robot_frame.force.z) > NONDIRECTIONAL_FORCE_THRESHOLD));
 
 
-    //TODO Bumpless start here, after making sure we have not crossed the effort limit already
+    //TODO Bumpless start here, after making sure we have not crossed the effort limit already, confirm how we want to do this
     virtual_attractor.pose = current_pose;
 
 
