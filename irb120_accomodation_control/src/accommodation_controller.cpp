@@ -227,7 +227,7 @@ bool setTaskFrameCallback(irb120_accomodation_control::set_task_frameRequest &re
 	y_vec_task_ = task_frame_rotation_matrix_.col(1);
 	z_vec_task_ = task_frame_rotation_matrix_.col(2);
 
-	task_frame_pose_stamped.pose = task_frame_with_respect_to_robot_;
+	// task_frame_pose_stamped.pose.position = task_frame_with_respect_to_robot_.translation();
 
 	/*
 	// New task frame stuff:

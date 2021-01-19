@@ -40,7 +40,7 @@ int main(int argc, char** argv) {
     ros::NodeHandle nh;
     ros::Subscriber cartesian_state_subscriber = nh.subscribe("cartesian_logger",1, cartesian_state_callback);
     ros::Subscriber ft_subscriber = nh.subscribe("transformed_ft_wrench",1,ft_callback);
-    ros::Subscriber ft_subscriber = nh.subscribe("tfd_virt_attr", 1, virtual_attractor_callback);
+    ros::Subscriber attr_subscriber = nh.subscribe("tfd_virt_attr", 1, virtual_attractor_callback);
     ros::Publisher virtual_attractor_publisher = nh.advertise<geometry_msgs::PoseStamped>("Virt_attr_pose",1);
 
     ros::ServiceClient client = nh.serviceClient<behavior_algorithms::status_service>("status_service");
@@ -117,33 +117,45 @@ int main(int argc, char** argv) {
     while(current_pose.position.x == 0 && init_attractor.pose.position.x == 0) ros::spinOnce();
     
     // Set the virtual attractor pose to the initial attractor pose, set once and published until the end of the command
-    virtual_attractor.pose = init_attractor;
+    if(trans_x && trans_y && trans_z && rot_x && rot_y && rot_z){
+        virtual_attractor.pose = current_pose;
+    }
+    else if(!trans_x && !trans_y && !trans_z && !rot_x && !rot_y && !rot_z){
+        virtual_attractor.pose = init_attractor.pose;
+    }
+    else{
 
-    // Check each axis parameter, if the flag is true, then reset that axis
-    if(trans_x){
-        virtual_attractor.pose.position.x = current_pose.position.x;
-    }
-    if(trans_y){
-        virtual_attractor.pose.position.y= current_pose.position.y;
-    }
-    if(trans_z){
-        virtual_attractor.pose.position.z= current_pose.position.z;
-    }
-    //! How do set the rotation to maintain load in only specified rotational axes?  current is incorrect
+        virtual_attractor.pose = init_attractor.pose;
 
-    // Break down the rotation into rotations around the 3 axes, and then choose which ones to rotate
-    // Convert the rotations for each axis into rotation matrices for each axis from the quaternion
-    // Then select which rotations we want, whether that is the rotation of the attractor or the current pose
-    // Multiply them all together, confirm with newman
-    
-    if(rot_x){
-        virtual_attractor.pose.orientation.x = current_pose.orientation.x;
-    }
-    if(rot_y){
-        virtual_attractor.pose.orientation.x = current_pose.orientation.y;
-    }
-    if(rot_z){
-        virtual_attractor.pose.orientation.x = current_pose.orientation.z;
+        // Check each axis parameter, if the flag is true, then reset that axis
+        //! This is also wrong, we need tool frame axes, and change it to be in the correct frame
+        if(trans_x){
+            virtual_attractor.pose.position.x = current_pose.position.x;
+        }
+        if(trans_y){
+            virtual_attractor.pose.position.y= current_pose.position.y;
+        }
+        if(trans_z){
+            virtual_attractor.pose.position.z= current_pose.position.z;
+        }
+        //! How do set the rotation to maintain load in only specified rotational axes?  current is incorrect
+
+        // Break down the rotation into rotations around the 3 axes, and then choose which ones to rotate
+        // Convert the rotations for each axis into rotation matrices for each axis from the quaternion
+        // Then select which rotations we want, whether that is the rotation of the attractor or the current pose
+        // Multiply them all together, confirm with newman
+        
+        /*
+        if(rot_x){
+            virtual_attractor.pose.orientation.x = current_pose.orientation.x;
+        }
+        if(rot_y){
+            virtual_attractor.pose.orientation.x = current_pose.orientation.y;
+        }
+        if(rot_z){
+            virtual_attractor.pose.orientation.x = current_pose.orientation.z;
+        }
+        */
     }
 
     // Begin loop
