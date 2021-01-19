@@ -221,11 +221,12 @@ bool setTaskFrameCallback(irb120_accomodation_control::set_task_frameRequest &re
 	task_frame_with_respect_to_robot_ = tool_with_respect_to_robot_;
 
 	// Just get the data directly from the tool frame, the service does not send or receive data, just used as a trigger mechanism
-	// task_frame_rotation_matrix_ = task_frame_with_respect_to_robot_.linear();
-	// x_vec_task_ = task_frame_rotation_matrix_.col(0);
-	// y_vec_task_ = task_frame_rotation_matrix_.col(1);
-	// z_vec_task_ = task_frame_rotation_matrix_.col(2);
+	task_frame_rotation_matrix_ = task_frame_with_respect_to_robot_.linear();
+	x_vec_task_ = task_frame_rotation_matrix_.col(0);
+	y_vec_task_ = task_frame_rotation_matrix_.col(1);
+	z_vec_task_ = task_frame_rotation_matrix_.col(2);
 
+	/*
 	// New task frame stuff:
 		Eigen::Vector3d AB_vector;
 		Eigen::Vector3d AC_vector;
@@ -266,6 +267,7 @@ bool setTaskFrameCallback(irb120_accomodation_control::set_task_frameRequest &re
 	 task_frame_pose_stamped.pose.orientation.y = task_frame_orientation_quaternion.y();
 	 task_frame_pose_stamped.pose.orientation.z = task_frame_orientation_quaternion.z();
 	 task_frame_pose_stamped.pose.orientation.w = task_frame_orientation_quaternion.w();
+	*/
 
 	response.status = "task frame set"; 
 	return true; 
