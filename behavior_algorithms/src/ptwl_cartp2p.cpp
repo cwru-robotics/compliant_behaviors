@@ -25,7 +25,7 @@ geometry_msgs::Pose current_pose;
 geometry_msgs::PoseStamped virtual_attractor;
 geometry_msgs::Wrench ft_in_robot_frame;
 
-geometry_msgs::WrenchStamped ft_in_sensor_frame; //TODO implement this, is this the correct data type to store this in?
+geometry_msgs::Wrench ft_in_sensor_frame; //TODO implement this, is this the correct data type to store this in?
 // Eigen::VectorXd ft_in_sensor_frame = Eigen::VectorXd::Zero(6);
 
 geometry_msgs::Vector3 tool_vector_x;
@@ -52,16 +52,15 @@ void ft_callback(const geometry_msgs::Wrench& ft_values) {
 
 // For use for exit wrench conditions
 void ft_sensor_callback(const geometry_msgs::WrenchStamped &ft_values){
-    // These are not values from the sensor. They are f/t values transformed into robot base frame.
-    ft_in_sensor_frame = ft_values;
+    ft_in_sensor_frame = ft_values.wrench;
 
     /* To add this for smoother values? 
-    wrench_body_coords_(0) = std::round(ft_sensor.wrench.force.x * 10) / 10;
-	wrench_body_coords_(1) = std::round(ft_sensor.wrench.force.y * 10) / 10;
-	wrench_body_coords_(2) = std::round(ft_sensor.wrench.force.z * 10) / 10;
-	wrench_body_coords_(3) = std::round(ft_sensor.wrench.torque.x * 10) / 10;
-	wrench_body_coords_(4) = std::round(ft_sensor.wrench.torque.y * 10) / 10;
-	wrench_body_coords_(5) = std::round(ft_sensor.wrench.torque.z * 10) / 10;
+    wrench_body_coords_(0) = std::round(ft_values.wrench.force.x * 10) / 10;
+	wrench_body_coords_(1) = std::round(ft_values.wrench.force.y * 10) / 10;
+	wrench_body_coords_(2) = std::round(ft_values.wrench.force.z * 10) / 10;
+	wrench_body_coords_(3) = std::round(ft_values.wrench.torque.x * 10) / 10;
+	wrench_body_coords_(4) = std::round(ft_values.wrench.torque.y * 10) / 10;
+	wrench_body_coords_(5) = std::round(ft_values.wrench.torque.z * 10) / 10;
     */
 }
 
@@ -519,8 +518,8 @@ int main(int argc, char** argv) {
 
     // Loop variable to check effort limit condition
     bool effort_limit_crossed = false;
-    effort_limit_crossed = ((abs(ft_in_robot_frame.torque.x) > TORQUE_THRESHOLD) || (abs(ft_in_robot_frame.torque.y) > TORQUE_THRESHOLD) || (abs(ft_in_robot_frame.torque.z) > TORQUE_THRESHOLD) ||
-                                 (abs(ft_in_robot_frame.force.x) > FORCE_THRESHOLD) || (abs(ft_in_robot_frame.force.y) > NONDIRECTIONAL_FORCE_THRESHOLD) || (abs(ft_in_robot_frame.force.z) > NONDIRECTIONAL_FORCE_THRESHOLD));
+    effort_limit_crossed = ((abs(ft_in_sensor_frame.torque.x) > TORQUE_THRESHOLD) || (abs(ft_in_sensor_frame.torque.y) > TORQUE_THRESHOLD) || (abs(ft_in_sensor_frame.torque.z) > TORQUE_THRESHOLD) ||
+                                 (abs(ft_in_sensor_frame.force.x) > FORCE_THRESHOLD) || (abs(ft_in_sensor_frame.force.y) > NONDIRECTIONAL_FORCE_THRESHOLD) || (abs(ft_in_sensor_frame.force.z) > NONDIRECTIONAL_FORCE_THRESHOLD));
 
 
     //TODO Bumpless start here, after making sure we have not crossed the effort limit already, confirm how we want to do this
@@ -600,8 +599,8 @@ int main(int argc, char** argv) {
 
         // Update the values for the loop condition
         //TODO update these to be in sensor frame? 
-        effort_limit_crossed = ((abs(ft_in_robot_frame.torque.x) > TORQUE_THRESHOLD) || (abs(ft_in_robot_frame.torque.y) > TORQUE_THRESHOLD) || (abs(ft_in_robot_frame.torque.z) > TORQUE_THRESHOLD) ||
-                                 (abs(ft_in_robot_frame.force.x) > FORCE_THRESHOLD) || (abs(ft_in_robot_frame.force.y) > NONDIRECTIONAL_FORCE_THRESHOLD) || (abs(ft_in_robot_frame.force.z) > NONDIRECTIONAL_FORCE_THRESHOLD));
+        effort_limit_crossed = ((abs(ft_in_sensor_frame.torque.x) > TORQUE_THRESHOLD) || (abs(ft_in_sensor_frame.torque.y) > TORQUE_THRESHOLD) || (abs(ft_in_sensor_frame.torque.z) > TORQUE_THRESHOLD) ||
+                                 (abs(ft_in_sensor_frame.force.x) > FORCE_THRESHOLD) || (abs(ft_in_sensor_frame.force.y) > NONDIRECTIONAL_FORCE_THRESHOLD) || (abs(ft_in_sensor_frame.force.z) > NONDIRECTIONAL_FORCE_THRESHOLD));
 
         loops_so_far = loops_so_far + 1;
 
@@ -623,27 +622,33 @@ int main(int argc, char** argv) {
     if(effort_limit_crossed) {
 
         // Print message
-        if(abs(ft_in_robot_frame.torque.x) > TORQUE_THRESHOLD){
+        if (abs(ft_in_sensor_frame.torque.x) > TORQUE_THRESHOLD)
+        {
             cout<<"X Torque threshold crossed"<<endl;
             srv.request.status = "X Torque threshold crossed";
         }
-        else if(abs(ft_in_robot_frame.torque.y) > TORQUE_THRESHOLD){
+        else if (abs(ft_in_sensor_frame.torque.y) > TORQUE_THRESHOLD)
+        {
             cout<<"Y Torque threshold crossed"<<endl;
             srv.request.status = "Y Torque threshold crossed";
         }
-        else if(abs(ft_in_robot_frame.torque.z) > TORQUE_THRESHOLD){
+        else if (abs(ft_in_sensor_frame.torque.z) > TORQUE_THRESHOLD)
+        {
             cout<<"Z Torque threshold crossed"<<endl;
             srv.request.status = "Z Torque threshold crossed";
         }
-        else if(abs(ft_in_robot_frame.force.x) > FORCE_THRESHOLD){
+        else if (abs(ft_in_sensor_frame.force.x) > FORCE_THRESHOLD)
+        {
             cout<<"X Force threshold crossed"<<endl;
             srv.request.status = "X Force threshold crossed";
         }
-        else if(abs(ft_in_robot_frame.force.y) > NONDIRECTIONAL_FORCE_THRESHOLD){
+        else if (abs(ft_in_sensor_frame.force.y) > NONDIRECTIONAL_FORCE_THRESHOLD)
+        {
             cout<<"Y Force threshold crossed"<<endl;
             srv.request.status = "Y Force threshold crossed";
         }
-        else if(abs(ft_in_robot_frame.force.z) > NONDIRECTIONAL_FORCE_THRESHOLD){
+        else if (abs(ft_in_sensor_frame.force.z) > NONDIRECTIONAL_FORCE_THRESHOLD)
+        {
             cout<<"Z Force threshold crossed"<<endl;
             srv.request.status = "Z Force threshold crossed";
         }

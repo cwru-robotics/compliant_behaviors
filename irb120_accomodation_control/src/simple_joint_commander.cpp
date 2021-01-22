@@ -78,7 +78,30 @@ int main(int argc, char** argv) {
     joint_states_goal_(4) = 0;
     joint_states_goal_(5) = 0;
     
-    // get params for end pose (in degree) from cmd input
+    // get params for end pose (in degree) from cmd input with default values
+    nh.param("/simple_joint_commander/joint_1", joint_states_goal_(0), 0.0);
+    nh.param("/simple_joint_commander/joint_2", joint_states_goal_(1), -48.0);
+    nh.param("/simple_joint_commander/joint_3", joint_states_goal_(2), 16.0);
+    nh.param("/simple_joint_commander/joint_4", joint_states_goal_(3), 0.0);
+    nh.param("/simple_joint_commander/joint_5", joint_states_goal_(4), 30.0);
+    nh.param("/simple_joint_commander/joint_6", joint_states_goal_(5), 0.0);
+
+
+    // clear parameters from server
+    nh.deleteParam("/simple_joint_commander/joint_1");
+    nh.deleteParam("/simple_joint_commander/joint_2");
+    nh.deleteParam("/simple_joint_commander/joint_3");
+    nh.deleteParam("/simple_joint_commander/joint_4");
+    nh.deleteParam("/simple_joint_commander/joint_5");
+    nh.deleteParam("/simple_joint_commander/joint_6");
+    
+    
+    //! Hardcode a value for the goal
+    // joint_states_goal_ << 0,-48,16,0,30,0;
+    // joint_states_goal_ << 0,-57,25,0,30,0;
+    // joint_states_goal_ << 0,-57,25,0,-60,0;
+    // joint_states_goal_ << 0,-37,5,0,-60,0;
+
 
     // ROS_INFO_STREAM(joint_states_goal_);
     /*
@@ -101,12 +124,6 @@ int main(int argc, char** argv) {
     0,-20,6,0,12,0; // Validation cap removal
     0,-28,7,0,20,0; // changed [5] from 19 to 21 7/22/19 // Everything else starting position
     */
-    // Hardcode a value for the goal
-    // joint_states_goal_ << 0,-48,16,0,30,0;
-    // joint_states_goal_ << 0,-57,25,0,30,0;
-    // joint_states_goal_ << 0,-57,25,0,-60,0;
-    //! joint_states_goal_ << 0,-35,1,0,-58,0;
-    joint_states_goal_ << 0,-37,5,0,-60,0;
 
     
     // Wait until we have data before proceeding with code
