@@ -40,10 +40,12 @@ class Application(tk.Frame):
         self.motion_control = ttk.Frame(self.tab_control)
         self.wiggle_control = ttk.Frame(self.tab_control)
         self.rwe_control = ttk.Frame(self.tab_control)
+        self.joint_control = ttk.Frame(self.tab_control)
 
         self.tab_control.add(self.motion_control, text='Motion Control')
         self.tab_control.add(self.wiggle_control, text='Dither Control')
         self.tab_control.add(self.rwe_control, text='RWE Control')
+        self.tab_control.add(self.joint_control, text='Joint Control')
 
         # Pack and display the tabs
 
@@ -204,6 +206,85 @@ class Application(tk.Frame):
         self.cart_rot_z = tk.Entry(self.motion_control, width=12, font='Courier 20 bold')
         self.cart_rot_z.grid(row=4, column=5, sticky=tk.NSEW, pady=5, padx=2)
 
+
+        #! Joint Control UI
+        
+        # Cart P2P Label and Submission Button
+        self.joint_label = tk.Label(self.joint_control,
+                                               text='Joint Angle Commands:',
+                                               font='Courier 20 bold')
+        self.joint_label.grid(row=2, column=2,
+                                         sticky=tk.NSEW, pady=5, padx=2)
+
+        self.joint_cmd = tk.Button(self.joint_control,
+                                          text='Send cmd', fg='blue',
+                                 command=self.joint_cmd_fnc, font='Courier 20 bold')
+        self.joint_cmd.grid(row=2, column=3, sticky=tk.NSEW,
+                                   pady=5, padx=2)
+
+        # Label for translation and rotation units
+        self.trans_label = tk.Label(self.joint_control,
+                                               text='All angles in rads',
+                                               fg='green',
+                                               font='Courier 20 bold')
+        self.trans_label.grid(row=5, column=0,
+                                         sticky=tk.NSEW, pady=5, padx=2)
+        # Labeled inputs for Joint Command
+        self.joint_label = tk.Label(self.joint_control,
+                                               text='Joint 1',
+                                               font='Courier 20 bold')
+        self.joint_label.grid(row=3, column=0,
+                                         sticky=tk.NSEW, pady=10, padx=2)
+
+        self.joint_label = tk.Label(self.joint_control,
+                                               text='Joint 2',
+                                               font='Courier 20 bold')
+        self.joint_label.grid(row=3, column=1,
+                                         sticky=tk.NSEW, pady=10, padx=2)
+                                        
+        self.joint_label = tk.Label(self.joint_control,
+                                               text='Joint 3',
+                                               font='Courier 20 bold')
+        self.joint_label.grid(row=3, column=2,
+                                         sticky=tk.NSEW, pady=10, padx=2)
+        self.joint_label = tk.Label(self.joint_control,
+                                               text='Joint 4',
+                                               font='Courier 20 bold')
+        self.joint_label.grid(row=3, column=3,
+                                         sticky=tk.NSEW, pady=10, padx=20)
+
+        self.joint_label = tk.Label(self.joint_control,
+                                               text='Joint 5',
+                                               font='Courier 20 bold')
+        self.joint_label.grid(row=3, column=4,
+                                         sticky=tk.NSEW, pady=10, padx=20)
+                                        
+        self.joint_label = tk.Label(self.joint_control,
+                                               text='Joint 6',
+                                               font='Courier 20 bold')
+        self.joint_label.grid(row=3, column=5,
+                                         sticky=tk.NSEW, pady=10, padx=20)
+
+        # Fields for the related entries
+        self.joint_1 = tk.Entry(self.joint_control, width=12, font='Courier 20 bold')
+        self.joint_1.grid(row=4, column=0, sticky=tk.NSEW, pady=5, padx=2)
+
+        self.joint_2 = tk.Entry(self.joint_control, width=12, font='Courier 20 bold')
+        self.joint_2.grid(row=4, column=1, sticky=tk.NSEW, pady=5, padx=2)
+
+        self.joint_3 = tk.Entry(self.joint_control, width=12, font='Courier 20 bold')
+        self.joint_3.grid(row=4, column=2, sticky=tk.NSEW, pady=5, padx=2)
+
+        self.joint_4 = tk.Entry(self.joint_control, width=12, font='Courier 20 bold')
+        self.joint_4.grid(row=4, column=3, sticky=tk.NSEW, pady=5, padx=2)
+
+        self.joint_5 = tk.Entry(self.joint_control, width=12, font='Courier 20 bold')
+        self.joint_5.grid(row=4, column=4, sticky=tk.NSEW, pady=5, padx=2)
+
+        self.joint_6 = tk.Entry(self.joint_control, width=12, font='Courier 20 bold')
+        self.joint_6.grid(row=4, column=5, sticky=tk.NSEW, pady=5, padx=2)
+
+
         # Torsional Wiggle Pull
 
         self.torsional_wiggle_pull_label = \
@@ -354,6 +435,12 @@ class Application(tk.Frame):
         self.cart_rot_x.delete(0, 'end')
         self.cart_rot_y.delete(0, 'end')
         self.cart_rot_z.delete(0, 'end')
+        self.joint_1.delete(0, 'end')
+        self.joint_2.delete(0, 'end')
+        self.joint_3.delete(0, 'end')
+        self.joint_4.delete(0, 'end')
+        self.joint_5.delete(0, 'end')
+        self.joint_6.delete(0, 'end')
         self.entry.delete(0, 'end')
 
 
@@ -444,6 +531,57 @@ class Application(tk.Frame):
 
         time.sleep(delay_len)
         os.system(command)
+        time.sleep(delay_len)
+        
+    
+    def joint_cmd_fnc(self):
+
+        # print("Here, i run a command using os, skill 2")
+
+        # Fix function call, and accept the inputs from the correct fields
+        
+        # Parse each input, if it is a 
+        # x = y = z = rot_x = rot_y = rot_z = 0
+        try:
+            joint_1 = float(self.joint_1.get())
+        except:
+            joint_1 = 0
+
+        try:
+            joint_2 = float(self.joint_2.get())
+        except:
+            joint_2 = -48
+
+        try:
+            joint_3 = float(self.joint_3.get())
+        except:
+            joint_3 = 16
+
+        try:
+            joint_4 = float(self.joint_4.get())
+        except:
+            joint_4 = 0
+
+        try:
+            joint_5 = float(self.joint_5.get())
+        except:
+            joint_5 = 30
+
+        try:
+            joint_6 = float(self.joint_6.get())
+        except:
+            joint_6 = 0
+
+        print(joint_1,joint_2,joint_3,joint_4,joint_5,joint_6)
+        
+        command = \
+            'rosrun irb120_accomodation_control simple_joint_commander _joint_1:={0} _joint_2:={1} _joint_3:={2} _joint_4:={3} _joint_5:={4} _joint_6:={5} _param_set:={6}'.format(joint_1,joint_2,joint_3,joint_4,joint_5,joint_6,self.parameter_set.get())
+        
+
+        print(command)
+
+        time.sleep(delay_len)
+        # os.system(command)
         time.sleep(delay_len)
         
     

@@ -599,8 +599,8 @@ int main(int argc, char** argv) {
 
         // Update the values for the loop condition
         //TODO update these to be in sensor frame? 
-        effort_limit_crossed = ((abs(ft_in_sensor_frame.torque.x) > TORQUE_THRESHOLD) || (abs(ft_in_sensor_frameft_in_sensor_frame.torque.y) > TORQUE_THRESHOLD) || (abs(ft_in_sensor_frameft_in_sensor_frame.torque.z) > TORQUE_THRESHOLD) ||
-                                 (abs(ft_in_sensor_frame.force.x) > FORCE_THRESHOLD) || (abs(ft_in_sensor_frameft_in_sensor_frame.force.y) > NONDIRECTIONAL_FORCE_THRESHOLD) || (abs(ft_in_sensor_frameft_in_sensor_frame.force.z) > NONDIRECTIONAL_FORCE_THRESHOLD));
+        effort_limit_crossed = ((abs(ft_in_sensor_frame.torque.x) > TORQUE_THRESHOLD) || (abs(ft_in_sensor_frame.torque.y) > TORQUE_THRESHOLD) || (abs(ft_in_sensor_frame.torque.z) > TORQUE_THRESHOLD) ||
+                                 (abs(ft_in_sensor_frame.force.x) > FORCE_THRESHOLD) || (abs(ft_in_sensor_frame.force.y) > NONDIRECTIONAL_FORCE_THRESHOLD) || (abs(ft_in_sensor_frame.force.z) > NONDIRECTIONAL_FORCE_THRESHOLD));
 
         loops_so_far = loops_so_far + 1;
 
