@@ -15,14 +15,16 @@ bool jnt_cmd = true, cart_cmd = false;
 geometry_msgs::Pose g_des_pose;
 geometry_msgs::Twist g_des_twist;
 
-vector<double> home_vec{0,-48,16,0,30,0}; // Tool exchange with quick connect
+// vector<double> home_vec{0,-53,24,0,-3,0}; // Current EGM pose
+// vector<double> home_vec{0,-37,5,0,-60,0}; // New tool exchange to quick connect valve (starting here)
+vector<double> home_vec{0,-48,16,0,30,0}; // Tool stowage with quick connect
 // vector<double> home_vec{0,-48,24,0,22,0}; // Pencil and knife starting position
-//vector<double> home_vec{0,-40,8,0,30,0}; // Pencil and knife starting position OLD 
-//vector<double> home_vec{0,-35,8,0,25,0}; // Validation move until touch
+// vector<double> home_vec{0,-40,8,0,30,0}; // Pencil and knife starting position OLD 
+// vector<double> home_vec{0,-35,8,0,25,0}; // Validation move until touch
 // vector<double> home_vec{0,-25,8,0,15,0}; // Validation rotate until torque
-//vector<double> home_vec{0,-20,6,0,12,0}; // Validation cap removal
+// vector<double> home_vec{0,-20,6,0,12,0}; // Validation cap removal
 // vector<double> home_vec{0,-28,7,0,20,0}; // changed [5] from 19 to 21 7/22/19 // Everything else starting position
-//{0,-28,7,0,20,0}; {0,-20,7,0,18,0};
+// {0,-28,7,0,20,0}; {0,-20,7,0,18,0};
 vector<double> zero_vec{0,0,0,0,0,0};
 int dbg;
 sensor_msgs::JointState g_joint_state;
