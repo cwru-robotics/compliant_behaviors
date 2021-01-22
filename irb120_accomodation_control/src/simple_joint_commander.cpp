@@ -102,9 +102,11 @@ int main(int argc, char** argv) {
     0,-28,7,0,20,0; // changed [5] from 19 to 21 7/22/19 // Everything else starting position
     */
     // Hardcode a value for the goal
-    //joint_states_goal_ << 0,-55,25,0,-60,0;
-    //joint_states_goal_ << 0,-37,5,0,-60,0;
-    joint_states_goal_ << 0,-48,16,0,-60,0;
+    // joint_states_goal_ << 0,-48,16,0,30,0;
+    // joint_states_goal_ << 0,-57,25,0,30,0;
+    // joint_states_goal_ << 0,-57,25,0,-60,0;
+    //! joint_states_goal_ << 0,-35,1,0,-58,0;
+    joint_states_goal_ << 0,-37,5,0,-60,0;
 
     
     // Wait until we have data before proceeding with code
