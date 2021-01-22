@@ -337,9 +337,9 @@ int main(int argc, char **argv) {
 	
 	// Define damping and gains
 	double B_virtual_translational = 4000; 
-	double B_virtual_rotational = 100; // was 100
-	double K_virtual_translational = 1000; 
-	double K_virtual_angular = 40;
+	double B_virtual_rotational = 200; // was 100
+	double K_virtual_translational = 1500; // was 1000
+	double K_virtual_angular = 40; // was 40
 	
 	// Declare joint state, pose stamped, pose, and wrench variables
 	sensor_msgs::JointState desired_joint_state;

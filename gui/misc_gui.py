@@ -9,7 +9,7 @@ import os
 import time
 
 # Length of the lag between sending and the machine receiving emssage
-delay_len = 2
+delay_len = 0
 
 # List of options for preset values, to be associated with related values in each function
 options = ['Peg', 'Bottle_Cap', 'Cutting', 'Tool', 'Task']

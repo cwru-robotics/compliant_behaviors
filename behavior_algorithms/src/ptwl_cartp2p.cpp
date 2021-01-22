@@ -1,5 +1,5 @@
 // Cartesian Point to Point move to command the attractor movement in a Pose Target, Wrench Limit
-// Matthew Haberbusch, Surag Balajepalli, and Rahul Pokharna 
+// Rahul Pokharna 
 
 // All ROS-specific code labeled with "ROS:" comments
 
@@ -274,8 +274,8 @@ int main(int argc, char** argv) {
     else if (!strcmp(param_set.c_str(), "Tool")){
         // set the other values here
         PULL_DISTANCE = 0;
-        FORCE_THRESHOLD = 25;
-        NONDIRECTIONAL_FORCE_THRESHOLD = 30;
+        FORCE_THRESHOLD = 30; // 25
+        NONDIRECTIONAL_FORCE_THRESHOLD = 40; // 30
         TORQUE_THRESHOLD = 4;
         KEEP_CONTACT_DISTANCE = 0;
         KEEP_CUTTING_DISTANCE = 0;
@@ -513,8 +513,8 @@ int main(int argc, char** argv) {
 
     int temple = 0;
     // ROS_INFO("Before loop");
-    cout << "Before loop (enter any number to continue): ";
-    cin >> temple;
+    // cout << "Before loop (enter any number to continue): ";
+    // cin >> temple;
     // ROS_INFO(freeze_mode_status);
 
     // Loop variable to check effort limit condition
@@ -543,7 +543,7 @@ int main(int argc, char** argv) {
     */
 
     // Add condition for if it is in freeze mode (should be unfrozen before this step above, at definitions of services and publishers)
-    // TODO add cojndition of when the command is done interpolating, update the goal reached
+    // TODO add condition of when the command is done interpolating, update the goal reached
     while( (loops_so_far <= total_number_of_loops) && !effort_limit_crossed && !target_reached) { // && !freeze_mode) {
         // ROS: for communication between programs
         ros::spinOnce();
@@ -688,6 +688,7 @@ int main(int argc, char** argv) {
     }
 
     //If we've timed out
+    //TODO add a goal check
     if (loops_so_far > total_number_of_loops){
         cout<<"Timed out"<<endl;
         srv.request.status = "Timed out";
