@@ -211,7 +211,7 @@ class Application(tk.Frame):
         
         # Cart P2P Label and Submission Button
         self.joint_label = tk.Label(self.joint_control,
-                                               text='Joint Angle Commands:',
+                                               text='Joint Cmdr:',
                                                font='Courier 20 bold')
         self.joint_label.grid(row=2, column=2,
                                          sticky=tk.NSEW, pady=5, padx=2)
@@ -222,12 +222,49 @@ class Application(tk.Frame):
         self.joint_cmd.grid(row=2, column=3, sticky=tk.NSEW,
                                    pady=5, padx=2)
 
+        # Preset buttons for joint poses
+        self.joint_cmd_pre_home = tk.Button(self.joint_control,
+                                          text='Home Pose', fg='blue',
+                                 command=self.simple_joint_commander_pre_home_pose, font='Courier 20 bold')
+        self.joint_cmd_pre_home.grid(row=5, column=1, sticky=tk.NSEW,
+                                   pady=5, padx=2)
+
+        self.joint_cmd_pull_back = tk.Button(self.joint_control,
+                                          text='Pull-back Pose', fg='blue',
+                                 command=self.simple_joint_commander_pre_pull_back_pose, font='Courier 20 bold')
+        self.joint_cmd_pull_back.grid(row=5, column=2, sticky=tk.NSEW,
+                                   pady=5, padx=2)
+
+        self.joint_cmd_rotate = tk.Button(self.joint_control,
+                                          text='Rotate Pose', fg='blue',
+                                 command=self.simple_joint_commander_pre_rotate_pose, font='Courier 20 bold')
+        self.joint_cmd_rotate.grid(row=5, column=3, sticky=tk.NSEW,
+                                   pady=5, padx=2)
+
+        self.joint_cmd_qd = tk.Button(self.joint_control,
+                                          text='QD Pose', fg='blue',
+                                 command=self.simple_joint_commander_pre_qd_pose, font='Courier 20 bold')
+        self.joint_cmd_qd.grid(row=5, column=4, sticky=tk.NSEW,
+                                   pady=5, padx=2)
+
+        self.joint_cmd_transition = tk.Button(self.joint_control,
+                                          text='Transition', fg='blue',
+                                 command=self.simple_joint_commander_pre_transition, font='Courier 20 bold')
+        self.joint_cmd_transition.grid(row=5, column=0, sticky=tk.NSEW,
+                                   pady=5, padx=2)
+
+        self.joint_cmd_zero = tk.Button(self.joint_control,
+                                          text='Zero', fg='blue',
+                                 command=self.simple_joint_commander_pre_zero_pose, font='Courier 20 bold')
+        self.joint_cmd_zero.grid(row=5, column=5, sticky=tk.NSEW,
+                                   pady=5, padx=2)
+
         # Label for translation and rotation units
         self.trans_label = tk.Label(self.joint_control,
-                                               text='All angles in rads',
+                                               text='Angs in degs',
                                                fg='green',
                                                font='Courier 20 bold')
-        self.trans_label.grid(row=5, column=0,
+        self.trans_label.grid(row=2, column=0,
                                          sticky=tk.NSEW, pady=5, padx=2)
         # Labeled inputs for Joint Command
         self.joint_label = tk.Label(self.joint_control,
@@ -575,16 +612,63 @@ class Application(tk.Frame):
         print(joint_1,joint_2,joint_3,joint_4,joint_5,joint_6)
         
         command = \
-            'rosrun irb120_accomodation_control simple_joint_commander _joint_1:={0} _joint_2:={1} _joint_3:={2} _joint_4:={3} _joint_5:={4} _joint_6:={5} _param_set:={6}'.format(joint_1,joint_2,joint_3,joint_4,joint_5,joint_6,self.parameter_set.get())
+            'rosrun irb120_accomodation_control simple_joint_commander _joint_1:={0} _joint_2:={1} _joint_3:={2} _joint_4:={3} _joint_5:={4} _joint_6:={5}'.format(joint_1,joint_2,joint_3,joint_4,joint_5,joint_6)
         
 
         print(command)
 
         time.sleep(delay_len)
-        # os.system(command)
+        os.system(command)
         time.sleep(delay_len)
         
-    
+    # Preset to joint command to the home pose above tool stowage
+    def simple_joint_commander_pre_home_pose(self):
+        time.sleep(delay_len)
+        os.system('rosrun irb120_accomodation_control simple_joint_commander _joint_1:=0 _joint_2:=-48 _joint_3:=16 _joint_4:=0 _joint_5:=30 _joint_6:=0')
+        time.sleep(delay_len)
+
+    # Preset to joint command to the pull-back position (above the tool stowage)
+    def simple_joint_commander_pre_pull_back_pose(self):
+        time.sleep(delay_len)
+        os.system('rosrun irb120_accomodation_control simple_joint_commander _joint_1:=0 _joint_2:=-57 _joint_3:=25 _joint_4:=0 _joint_5:=30 _joint_6:=0')
+        time.sleep(delay_len)
+
+    # Preset to joint command to the rotate-pose
+    def simple_joint_commander_pre_rotate_pose(self):
+        time.sleep(delay_len)
+        os.system('rosrun irb120_accomodation_control simple_joint_commander _joint_1:=0 _joint_2:=-57 _joint_3:=25 _joint_4:=0 _joint_5:=-60 _joint_6:=0')
+        time.sleep(delay_len)
+
+    # Preset to joint command to the QD position
+    def simple_joint_commander_pre_qd_pose(self):
+        time.sleep(delay_len)
+        os.system('rosrun irb120_accomodation_control simple_joint_commander _joint_1:=0 _joint_2:=-37 _joint_3:=5 _joint_4:=0 _joint_5:=-60 _joint_6:=0')
+        time.sleep(delay_len)
+
+    # Preset to joint command to the zero (calibrated) position
+    def simple_joint_commander_pre_zero_pose(self):
+        time.sleep(delay_len)
+        os.system('rosrun irb120_accomodation_control simple_joint_commander _joint_1:=0 _joint_2:=0 _joint_3:=0 _joint_4:=0 _joint_5:=0 _joint_6:=0')
+        time.sleep(delay_len)
+        
+    # Preset to joint commands to run in a set order
+    def simple_joint_commander_pre_transition(self):
+        time.sleep(delay_len)
+
+        # Have no/low delays between programs whenc ommanding many at once
+        # temp_delay = delay_len
+        # delay_len = 0.2
+        
+        # 1 First go to the home pose
+        self.simple_joint_commander_pre_home_pose()
+        # 2 Then command the pull back pose
+        self.simple_joint_commander_pre_pull_back_pose()
+        # 3 Then command the rotate pose
+        self.simple_joint_commander_pre_rotate_pose()
+        # 4 Then approach the QD pose
+        self.simple_joint_commander_pre_qd_pose()
+        
+        time.sleep(delay_len)   
 
     def torsional_wiggle_pull(self):
 

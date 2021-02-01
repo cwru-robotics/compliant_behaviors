@@ -273,8 +273,8 @@ int main(int argc, char** argv) {
     else if (!strcmp(param_set.c_str(), "Tool")){
         // set the other values here
         PULL_DISTANCE = 0;
-        FORCE_THRESHOLD = 30; // 25
-        NONDIRECTIONAL_FORCE_THRESHOLD = 40; // 30
+        FORCE_THRESHOLD = 25; // 25
+        NONDIRECTIONAL_FORCE_THRESHOLD = 30; // 30
         TORQUE_THRESHOLD = 4;
         KEEP_CONTACT_DISTANCE = 0;
         KEEP_CUTTING_DISTANCE = 0;
@@ -519,7 +519,7 @@ int main(int argc, char** argv) {
     // Loop variable to check effort limit condition
     bool effort_limit_crossed = false;
     effort_limit_crossed = ((abs(ft_in_sensor_frame.torque.x) > TORQUE_THRESHOLD) || (abs(ft_in_sensor_frame.torque.y) > TORQUE_THRESHOLD) || (abs(ft_in_sensor_frame.torque.z) > TORQUE_THRESHOLD) ||
-                                 (abs(ft_in_sensor_frame.force.x) > FORCE_THRESHOLD) || (abs(ft_in_sensor_frame.force.y) > NONDIRECTIONAL_FORCE_THRESHOLD) || (abs(ft_in_sensor_frame.force.z) > NONDIRECTIONAL_FORCE_THRESHOLD));
+                                 (abs(ft_in_sensor_frame.force.x) > FORCE_THRESHOLD) || (abs(ft_in_sensor_frame.force.y) > FORCE_THRESHOLD) || (abs(ft_in_sensor_frame.force.z) > FORCE_THRESHOLD));
 
 
     //TODO Bumpless start here, after making sure we have not crossed the effort limit already, confirm how we want to do this
@@ -543,7 +543,7 @@ int main(int argc, char** argv) {
 
     // Add condition for if it is in freeze mode (should be unfrozen before this step above, at definitions of services and publishers)
     // TODO add condition of when the command is done interpolating, update the goal reached
-    while( (loops_so_far <= total_number_of_loops) && !effort_limit_crossed && !target_reached) { // && !freeze_mode) {
+    while( (loops_so_far <= total_number_of_loops) && !effort_limit_crossed && !target_reached && !freeze_mode) {
         // ROS: for communication between programs
         ros::spinOnce();
         // cout << "Press enter to continue";
@@ -600,7 +600,7 @@ int main(int argc, char** argv) {
         // Update the values for the loop condition
         //TODO update these to be in sensor frame? 
         effort_limit_crossed = ((abs(ft_in_sensor_frame.torque.x) > TORQUE_THRESHOLD) || (abs(ft_in_sensor_frame.torque.y) > TORQUE_THRESHOLD) || (abs(ft_in_sensor_frame.torque.z) > TORQUE_THRESHOLD) ||
-                                 (abs(ft_in_sensor_frame.force.x) > FORCE_THRESHOLD) || (abs(ft_in_sensor_frame.force.y) > NONDIRECTIONAL_FORCE_THRESHOLD) || (abs(ft_in_sensor_frame.force.z) > NONDIRECTIONAL_FORCE_THRESHOLD));
+                                 (abs(ft_in_sensor_frame.force.x) > FORCE_THRESHOLD) || (abs(ft_in_sensor_frame.force.y) > FORCE_THRESHOLD) || (abs(ft_in_sensor_frame.force.z) > FORCE_THRESHOLD));
 
         loops_so_far = loops_so_far + 1;
 
@@ -642,12 +642,12 @@ int main(int argc, char** argv) {
             cout<<"X Force threshold crossed"<<endl;
             srv.request.status = "X Force threshold crossed";
         }
-        else if (abs(ft_in_sensor_frame.force.y) > NONDIRECTIONAL_FORCE_THRESHOLD)
+        else if (abs(ft_in_sensor_frame.force.y) > FORCE_THRESHOLD)
         {
             cout<<"Y Force threshold crossed"<<endl;
             srv.request.status = "Y Force threshold crossed";
         }
-        else if (abs(ft_in_sensor_frame.force.z) > NONDIRECTIONAL_FORCE_THRESHOLD)
+        else if (abs(ft_in_sensor_frame.force.z) > FORCE_THRESHOLD)
         {
             cout<<"Z Force threshold crossed"<<endl;
             srv.request.status = "Z Force threshold crossed";
@@ -701,8 +701,8 @@ int main(int argc, char** argv) {
         ros::spinOnce();
 
         // we want to sleep here in compliance for some time
-        cout<<"Loop completed, timer to settle of 10 seconds"<<endl;
-        ros::Duration(10).sleep(); //TODO change this to be a loop still checking the goal and while(ros::ok())
+        cout<<"Loop completed, timer to settle of 5 seconds"<<endl;
+        ros::Duration(5).sleep(); //TODO change this to be a loop still checking the goal and while(ros::ok())
 
         // Put the virtual attractor at the end effector
         virtual_attractor.pose = current_pose;

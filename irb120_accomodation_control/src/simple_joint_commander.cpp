@@ -155,6 +155,9 @@ int main(int argc, char** argv) {
         n_steps = std::round(joint_states_diff.norm()  / dt_);
     }
 
+    // Increase length of steps to allow for more iterations to hit the goal check
+    n_steps *= 2;
+
     // debug output
     ROS_INFO_STREAM("Diff in deg");
     ROS_INFO_STREAM(rad2deg_vect(joint_states_diff));
@@ -175,8 +178,8 @@ int main(int argc, char** argv) {
     // Initialize our desired pose
     des_jnt_pos = joint_states_;
     int temp = 0;
-    cout<<endl<<"BEFORE LOOP; enter an int: ";
-    cin>>temp;
+    // cout<<endl<<"BEFORE LOOP; enter an int: ";
+    // cin>>temp;
 
     // update to only run until we interpolated to the final pose
     //? do we want to add an updated velocity, and check, with the exit condition of within some norm off?
