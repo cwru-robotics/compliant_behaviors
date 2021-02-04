@@ -73,6 +73,7 @@ Eigen::Vector3d z_vec_stowage_;
 geometry_msgs::Vector3 x_vec_stowage_message_;
 geometry_msgs::Vector3 y_vec_stowage_message_;
 geometry_msgs::Vector3 z_vec_stowage_message_;
+geometry_msgs::PoseStamped stowage_frame_pose_stamped;
 
 
 // MATH: Function converts a rotation matrix to a vector of angles (phi_x, phi_y, phi_z)

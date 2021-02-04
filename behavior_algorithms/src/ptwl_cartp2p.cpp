@@ -23,9 +23,11 @@ using namespace std;
 // Declare variables
 geometry_msgs::Pose current_pose;
 geometry_msgs::PoseStamped virtual_attractor;
-geometry_msgs::Wrench ft_in_robot_frame;
+geometry_msgs::Wrench ft_in_robot_frame; //TODO use for bumpless
 
-geometry_msgs::Wrench ft_in_sensor_frame; //TODO implement this, is this the correct data type to store this in?
+geometry_msgs::PoseStamped task_frame;
+geometry_msgs::PoseStamped stowage_frame;
+geometry_msgs::Wrench ft_in_sensor_frame; 
 // Eigen::VectorXd ft_in_sensor_frame = Eigen::VectorXd::Zero(6);
 
 geometry_msgs::Vector3 tool_vector_x;
@@ -34,6 +36,9 @@ geometry_msgs::Vector3 tool_vector_z;
 geometry_msgs::Vector3 task_vector_x;
 geometry_msgs::Vector3 task_vector_y;
 geometry_msgs::Vector3 task_vector_z;
+geometry_msgs::Vector3 stowage_vector_x;
+geometry_msgs::Vector3 stowage_vector_y;
+geometry_msgs::Vector3 stowage_vector_z;
 
 std_msgs::Int8 freeze_mode_status;
 bool freeze_mode; // maybe don't define it as having a starting value? 
@@ -88,6 +93,26 @@ void task_vector_z_callback(const geometry_msgs::Vector3& task_vector_msg_z) {
     task_vector_z = task_vector_msg_z;
 }
 
+void task_frame_callback(const geometry_msgs::PoseStamped& task_frame_from_sub) {
+    task_frame = task_frame_from_sub;
+}
+
+void stowage_vector_x_callback(const geometry_msgs::Vector3& stowage_vector_msg_x) {
+    stowage_vector_x = stowage_vector_msg_x;
+}
+
+void stowage_vector_y_callback(const geometry_msgs::Vector3& stowage_vector_msg_y) {
+    stowage_vector_y = stowage_vector_msg_y;
+}
+
+void stowage_vector_z_callback(const geometry_msgs::Vector3& stowage_vector_msg_z) {
+    stowage_vector_z = stowage_vector_msg_z;
+}
+
+void stowage_frame_callback(const geometry_msgs::PoseStamped& stowage_frame_from_sub) {
+    stowage_frame = stowage_frame_from_sub;
+}
+
 void freeze_status_callback(const std_msgs::Int8& freeze_status_msg) {
     freeze_updated = true;
     freeze_mode_status = freeze_status_msg;
@@ -116,6 +141,11 @@ int main(int argc, char** argv) {
     ros::Subscriber task_vector_sub_x = nh.subscribe("task_vector_x",1,task_vector_x_callback);                  // subscribe to the value of the task vector in the z, published from the accomodation controller
     ros::Subscriber task_vector_sub_y = nh.subscribe("task_vector_y",1,task_vector_y_callback);                  // subscribe to the value of the task vector in the z, published from the accomodation controller
     ros::Subscriber task_vector_sub_z = nh.subscribe("task_vector_z",1,task_vector_z_callback);                  // subscribe to the value of the task vector in the z, published from the accomodation controller
+    ros::Subscriber task_frame_sub = nh.subscribe("task_frame",1,task_frame_callback);                         // subscribe to the task frame published by the accomodation controller
+    ros::Subscriber stowage_vector_sub_x = nh.subscribe("stowage_vector_x",1,stowage_vector_x_callback);                  // subscribe to the value of the stowage vector in the z, published from the accomodation controller
+    ros::Subscriber stowage_vector_sub_y = nh.subscribe("stowage_vector_y",1,stowage_vector_y_callback);                  // subscribe to the value of the stowage vector in the z, published from the accomodation controller
+    ros::Subscriber stowage_vector_sub_z = nh.subscribe("stowage_vector_z",1,stowage_vector_z_callback);                  // subscribe to the value of the stowage vector in the z, published from the accomodation controller
+    ros::Subscriber stowage_frame_sub = nh.subscribe("stowage_frame",1,stowage_frame_callback);                         // subscribe to the stowage frame published by the accomodation controller
     ros::Publisher virtual_attractor_publisher = nh.advertise<geometry_msgs::PoseStamped>("Virt_attr_pose",1); // publish the pose of the virtual attractor for the accomodation controller 
 
     // ROS: Services used in conjunction with buffer.cpp to have delayed program status sent to operator
@@ -146,7 +176,7 @@ int main(int argc, char** argv) {
     FORCE_THRESHOLD: The limit at which the program will stop if the force in the direction which we are moving is crossed
     NONDIRECTIONAL_FORCE_THRESHOLD: The limit at which the program will stop if the force in the direction which we are not moving is crossed
     TORQUE_THRESHOLD: The limit at which the program will stop if the torque threshold is crossed
-    RUN_TIME: How long the program will run before timing out and ending
+    SETTLE_TIME: How long the program will run before timing out and ending after completing interpolation
     
     Params not needed to be tuned:
     DT: Loop rate, how fast each iteration of the loop is (most likely not needed to be changed)
@@ -156,20 +186,25 @@ int main(int argc, char** argv) {
     MAX_VEL: The maximum velocity for translation (Used for cartP2P) in m/s
     MAX_ANG: The maximum angular velocity for rotation (Used for cartP2P) in rad/s
     */
-    double PULL_DISTANCE = 0.012, KEEP_CONTACT_DISTANCE = 0.0075, DT = 0.01, FORCE_THRESHOLD = 12, ROTATION_ERROR_THRESHOLD = 0.03; 
-    double NONDIRECTIONAL_FORCE_THRESHOLD = 20, KEEP_CUTTING_DISTANCE = 0, MAX_VEL = 0.01, MAX_ANG = 0.2, TRANSLATION_ERROR_THRESHOLD = 0.001; 
+    double DT = 0.01, FORCE_THRESHOLD = 12, ROTATION_ERROR_THRESHOLD = 0.03; 
+    double KEEP_CUTTING_DISTANCE = 0, MAX_VEL = 0.01, MAX_ANG = 0.2, TRANSLATION_ERROR_THRESHOLD = 0.001; 
     //! These names may want to change
     double x = 0, y = 0, z = 0;
     double psi = 0, theta = 0, phi = 0; 
     double TORQUE_THRESHOLD = 2;
-    double RUN_TIME = 15;
+    double SETTLE_TIME = 5;
 
     // Parameter for if in the cutting state, easier checking later
     bool cutting = false;
 
     // Parameter if we are in the task frame or not
     bool task = false;
+
+    // Parameter if we are in the stowage frame or not
+    bool stowage = false;
     
+    // Parameter if we are bumpless or not
+    bool bumpless = false;
 
     // Variable for which set of parameters to use
     string param_set = "Peg";
@@ -227,6 +262,7 @@ int main(int argc, char** argv) {
     nh.param("/CartP2PTWL/rot_x", psi, 0.0);
     nh.param("/CartP2PTWL/rot_y", theta, 0.0);
     nh.param("/CartP2PTWL/rot_z", phi, 0.0);
+    nh.param("/CartP2PTWL/bumpless", bumpless, false); //TODO fix and make sure this works
     
     nh.param<std::string>("/CartP2PTWL/param_set", param_set, "Tool");
 
@@ -237,6 +273,7 @@ int main(int argc, char** argv) {
     nh.deleteParam("/CartP2PTWL/rot_x"); 
     nh.deleteParam("/CartP2PTWL/rot_y"); 
     nh.deleteParam("/CartP2PTWL/rot_z"); 
+    nh.deleteParam("/CartP2PTWL/bumpless"); 
 
     nh.deleteParam("/CartP2PTWL/param_set");
 
@@ -244,73 +281,75 @@ int main(int argc, char** argv) {
     // Here, the values for PULL_DISTANCE and FORCE_THRESHOLD are changed according to what setting the GUI is on for the appropriate task
     if(!strcmp(param_set.c_str(), "Peg")){
         // set the new values here
-        PULL_DISTANCE = 0.012;
         FORCE_THRESHOLD = 12;
-        NONDIRECTIONAL_FORCE_THRESHOLD = 20;
         TORQUE_THRESHOLD = 2;
-        KEEP_CONTACT_DISTANCE = 0.0075;
         KEEP_CUTTING_DISTANCE = 0;
-        RUN_TIME = 15;
+        SETTLE_TIME = 5;
         
+        stowage = false;
         cutting = false;
         task = false;
         ROS_INFO("Params set for PEG");
     }
     else if (!strcmp(param_set.c_str(), "Bottle_Cap")){
         // set the other values here
-        PULL_DISTANCE = 0.015;
         FORCE_THRESHOLD = 15;
-        NONDIRECTIONAL_FORCE_THRESHOLD = 20;
         TORQUE_THRESHOLD = 2;
-        KEEP_CONTACT_DISTANCE = 0.0075;
         KEEP_CUTTING_DISTANCE = 0;
-        RUN_TIME = 15;
+        SETTLE_TIME = 5;
 
+        stowage = false;
         cutting = false;
         task = false;
         ROS_INFO("Params set for BOTTLE_CAP");
     }
     else if (!strcmp(param_set.c_str(), "Tool")){
         // set the other values here
-        PULL_DISTANCE = 0;
         FORCE_THRESHOLD = 25; // 25
-        NONDIRECTIONAL_FORCE_THRESHOLD = 30; // 30
         TORQUE_THRESHOLD = 4;
-        KEEP_CONTACT_DISTANCE = 0;
         KEEP_CUTTING_DISTANCE = 0;
-        RUN_TIME = 30;
+        SETTLE_TIME = 5;
 
+        stowage = false;
         cutting = false;
         task = false;
         ROS_INFO("Params set for TOOL");
     }
     else if (!strcmp(param_set.c_str(), "Cutting")){
         // set the other values here
-        PULL_DISTANCE = 0.005;
         FORCE_THRESHOLD = 4;
-        NONDIRECTIONAL_FORCE_THRESHOLD = 7;
         TORQUE_THRESHOLD = 2;
-        KEEP_CONTACT_DISTANCE = 0;
         KEEP_CUTTING_DISTANCE = 0.00075; // was 0.001
-        RUN_TIME = 30;
+        SETTLE_TIME = 5;
 
+        stowage = false;
         cutting = true;
         task = true;
         ROS_INFO("Params set for CUTTING");
     }
     else if (!strcmp(param_set.c_str(), "Task")){
         // set the other values here
-        PULL_DISTANCE = 0.006;
-        FORCE_THRESHOLD = 4;
-        NONDIRECTIONAL_FORCE_THRESHOLD = 7;
-        TORQUE_THRESHOLD = 2;
-        KEEP_CONTACT_DISTANCE = 0;
+        FORCE_THRESHOLD = 25;
+        TORQUE_THRESHOLD = 4;
         KEEP_CUTTING_DISTANCE = 0; 
-        RUN_TIME = 30;
+        SETTLE_TIME = 5;
 
+        stowage = false;
         cutting = false;
         task = true;
         ROS_INFO("Params set for TASK");
+    }
+    else if (!strcmp(param_set.c_str(), "Stowage")){
+        // set the other values here
+        FORCE_THRESHOLD = 25;
+        TORQUE_THRESHOLD = 4;
+        KEEP_CUTTING_DISTANCE = 0; 
+        SETTLE_TIME = 5;
+
+        stowage = true;
+        cutting = false;
+        task = false;
+        ROS_INFO("Params set for STOWAGE");
     }
     //TODO ADD PARAM FOR TOOL EXCHANGE
     ROS_INFO("after storing params");
@@ -360,15 +399,35 @@ int main(int argc, char** argv) {
     current_pose_quat.z() = current_pose.orientation.z;
     current_pose_quat.w() = current_pose.orientation.w;
     
+    // Convert the geometry quaternion to a quaternion
+    Eigen::Quaterniond task_frame_quat;
+    task_frame_quat.x() = task_frame.pose.orientation.x;
+    task_frame_quat.y() = task_frame.pose.orientation.y;
+    task_frame_quat.z() = task_frame.pose.orientation.z;
+    task_frame_quat.w() = task_frame.pose.orientation.w;
+
+    // Convert the geometry quaternion to a quaternion
+    Eigen::Quaterniond stowage_frame_quat;
+    stowage_frame_quat.x() = stowage_frame.pose.orientation.x;
+    stowage_frame_quat.y() = stowage_frame.pose.orientation.y;
+    stowage_frame_quat.z() = stowage_frame.pose.orientation.z;
+    stowage_frame_quat.w() = stowage_frame.pose.orientation.w;
+
     //TODO Task is set to false, need to update to use task frame with cartp2p, other values are also removed here
-    task = false;
-    KEEP_CONTACT_DISTANCE = 0;
+    // task = false;
     KEEP_CUTTING_DISTANCE = 0;
 
     // Update to accept input of goal pose here, and then add the deltas 
     geometry_msgs::Vector3 delta_trans_vec;
     if(task){
-        delta_trans_vec = task_vector_z;
+        delta_trans_vec.x = (x * task_vector_x.x) + (y * task_vector_y.x) + (z * task_vector_z.x);
+        delta_trans_vec.y = (x * task_vector_x.y) + (y * task_vector_y.y) + (z * task_vector_z.y);
+        delta_trans_vec.z = (x * task_vector_x.z) + (y * task_vector_y.z) + (z * task_vector_z.z);
+    }
+    else if(stowage){
+        delta_trans_vec.x = (x * stowage_vector_x.x) + (y * stowage_vector_y.x) + (z * stowage_vector_z.x);
+        delta_trans_vec.y = (x * stowage_vector_x.y) + (y * stowage_vector_y.y) + (z * stowage_vector_z.y);
+        delta_trans_vec.z = (x * stowage_vector_x.z) + (y * stowage_vector_y.z) + (z * stowage_vector_z.z);
     }
     else{
         // The values from the parameters are stored here, scale the tool vecs, then add them together to get the delta vec
@@ -414,18 +473,43 @@ int main(int argc, char** argv) {
     Eigen::Matrix3d R_start, R_end, R_change, R_change_interp, R_interp;
     R_start = start_pose_quat.normalized().toRotationMatrix(); // current tool pose, convert to rotation
 
+    //! Below is used for rotations in the task frame
+    // Task frame will not update during a skill (if using the GUI to interact, if using other commands outside of gui, other issues may arise)
+    Eigen::Matrix3d task_frame_rot = task_frame_quat.normalized().toRotationMatrix();
+    // MATH: Get rotation matrix from the task frame to the current pose
+    Eigen::Matrix3d tool_in_task = task_frame_rot.inverse() * R_start;
+    Eigen::Matrix3d goal_pose_wrt_task; // maybe not needed
+
+    //! Below is used for rotations in the stowage frame
+    // stowage frame will not update during a skill (if using the GUI to interact, if using other commands outside of gui, other issues may arise)
+    Eigen::Matrix3d stowage_frame_rot = stowage_frame_quat.normalized().toRotationMatrix();
+    // MATH: Get rotation matrix from the stowage frame to the current pose
+    Eigen::Matrix3d tool_in_stowage = stowage_frame_rot.inverse() * R_start;
+    Eigen::Matrix3d goal_pose_wrt_stowage; // maybe not needed
+
     // Initial R_interp is the starting rotation, each delta added:
     R_interp = R_start;
 
-    // Take the start rotation, apply the desired rotation to calculate the final rotation matrix
-    
-    R_end = start_pose_quat * TO_DESTINATION_ROTATION_MATRIX; // I feel this math may need to be flipped, but it seems to check based on OTEL (rotation in tool frame)
+    //! check if in task frame or in tool frame:
+    if(task){
+        // Calculate the new goal rotation matrix in th
+        goal_pose_wrt_task = TO_DESTINATION_ROTATION_MATRIX * tool_in_task;
+        R_end = task_frame_rot * goal_pose_wrt_task; 
+    }
+    else if(stowage){
+        goal_pose_wrt_stowage = TO_DESTINATION_ROTATION_MATRIX * tool_in_stowage;
+        R_end = stowage_frame_rot * goal_pose_wrt_stowage; 
+    }
+    else{
+        // Take the start rotation, apply the desired rotation to calculate the final rotation matrix in tool frame
+        R_end = start_pose_quat * TO_DESTINATION_ROTATION_MATRIX; // I feel this math may need to be flipped, but it seems to check based on OTEL (rotation in tool frame)
+    }
     // R_end = TO_DESTINATION_ROTATION_MATRIX * start_pose_quat; // Double check here, this was swapped
 
     //? Below line is used if we have the end pose given to us, here we do not and thus must calculate it above
     // R_end = end_pose_quat.normalized().toRotationMatrix(); // end pose, convert to rotation 
 
-    //TODO get the orientation input, needs to be updated
+
     Eigen::Quaterniond end_pose_quat(R_end);
     //R_end = R_change*R_start //! This is reversed compared to above
     R_change = TO_DESTINATION_ROTATION_MATRIX; 
@@ -526,9 +610,8 @@ int main(int argc, char** argv) {
     virtual_attractor.pose = current_pose;
 
 
-    // Used in the loop to determine the run time and time out
-    // double total_number_of_loops = RUN_TIME / DT; // perhaps change this to be n_steps instead
-    double total_number_of_loops = n_steps;
+    // Used in the loop to determine the run time and time out additional length to allow it to settle in the main function
+    double total_number_of_loops = n_steps + (SETTLE_TIME / DT);
     double loops_so_far = 0;
 
     // Begin loop
@@ -540,43 +623,48 @@ int main(int argc, char** argv) {
     3. The target orientation has been reached
     4. There was an external call to freeze the system, exiting this command
     */
-
-    // Add condition for if it is in freeze mode (should be unfrozen before this step above, at definitions of services and publishers)
-    // TODO add condition of when the command is done interpolating, update the goal reached
-    while( (loops_so_far <= total_number_of_loops) && !effort_limit_crossed && !target_reached && !freeze_mode) {
+    while( (loops_so_far < total_number_of_loops) && !effort_limit_crossed && !target_reached && !freeze_mode) {
         // ROS: for communication between programs
         ros::spinOnce();
         // cout << "Press enter to continue";
         // cin >> temple;
+
+        // only if we are below the number of interpolation steps do we want to adjust the attractor, otherwise we will just check the goal checks
+        if(loops_so_far < n_steps){
+            // Add translation interpolation (maybe want to instead add the advancement to the starting pose, rather than the end)
+            virtual_attractor.pose.position.x = virtual_attractor.pose.position.x + delta_trans_vec.x;
+            virtual_attractor.pose.position.y = virtual_attractor.pose.position.y + delta_trans_vec.y;
+            virtual_attractor.pose.position.z = virtual_attractor.pose.position.z + delta_trans_vec.z;
+
+            // Advance rotation interpolation
+            theta_interp = (loops_so_far + 1) * dtheta; //! This is wrong, needs to be transformed properly (maybe be based off of start, or change the initial TF)
+            // R_change_interp = Eigen::AngleAxisd(theta_interp, k_rot_axis);
+            
+            // R_interp = R_change_interp * R_start; // maybe swap this
+
+            // R_interp = R_start * R_change_interp; // Swapped to match initial end check, rotation in tool frame not base
+            
+            // New method, add to previous interpolated rotation
+            R_change_interp = Eigen::AngleAxisd(dtheta, k_rot_axis);
+            R_interp = R_interp * R_change_interp; // where R_interp is the previous rotation matrix in base frame
+
+            // Update the rotation of the virtual attractor
+            Eigen::Quaterniond new_virtual_attractor_quat(R_interp);
+            virtual_attractor.pose.orientation.x = new_virtual_attractor_quat.x();
+            virtual_attractor.pose.orientation.y = new_virtual_attractor_quat.y();
+            virtual_attractor.pose.orientation.z = new_virtual_attractor_quat.z();
+            virtual_attractor.pose.orientation.w = new_virtual_attractor_quat.w();
+        }
+        else if (loops_so_far = n_steps){
+            cout<<"Interpolation complete"<<endl;
+            ROS_INFO_STREAM("Interpolation complete");
+        }
+        
         // Update values for goal checks 
         current_pose_quat.x() = current_pose.orientation.x;
         current_pose_quat.y() = current_pose.orientation.y;
         current_pose_quat.z() = current_pose.orientation.z;
         current_pose_quat.w() = current_pose.orientation.w;
-
-        // Add translation interpolation (maybe want to instead add the advancement to the starting pose, rather than the end)
-        virtual_attractor.pose.position.x = virtual_attractor.pose.position.x + delta_trans_vec.x;
-        virtual_attractor.pose.position.y = virtual_attractor.pose.position.y + delta_trans_vec.y;
-        virtual_attractor.pose.position.z = virtual_attractor.pose.position.z + delta_trans_vec.z;
-
-        // Advance rotation interpolation
-        theta_interp = (loops_so_far + 1) * dtheta; //! This is wrong, needs to be transformed properly (maybe be based off of start, or change the initial TF)
-        // R_change_interp = Eigen::AngleAxisd(theta_interp, k_rot_axis);
-        
-        // R_interp = R_change_interp * R_start; // maybe swap this
-
-        // R_interp = R_start * R_change_interp; // Swapped to match initial end check, rotation in tool frame not base
-        
-        // New method, add to previous interpolated rotation
-        R_change_interp = Eigen::AngleAxisd(dtheta, k_rot_axis);
-        R_interp = R_interp * R_change_interp; // where R_interp is the previous rotation matrix in base frame
-
-        // Update the rotation of the virtual attractor
-        Eigen::Quaterniond new_virtual_attractor_quat(R_interp);
-        virtual_attractor.pose.orientation.x = new_virtual_attractor_quat.x();
-        virtual_attractor.pose.orientation.y = new_virtual_attractor_quat.y();
-        virtual_attractor.pose.orientation.z = new_virtual_attractor_quat.z();
-        virtual_attractor.pose.orientation.w = new_virtual_attractor_quat.w();
 
         // Update vector to goal for target reached check
         vector_to_goal.x = ending_position.x - current_pose.position.x;
@@ -618,7 +706,7 @@ int main(int argc, char** argv) {
 
     // TODO update the end conditions
     // If we've crossed the effort limts, check which is crossed for the status output
-    //TODO change to be the non TFed wrench (tool frame relative)
+    //TODO change to be the task or stowage frame (or tool)
     if(effort_limit_crossed) {
 
         // Print message
@@ -660,21 +748,6 @@ int main(int argc, char** argv) {
         // ROS: for communication between programs
         ros::spinOnce();
 
-        // Keep the virtual attractor slightly below the surface, or above if pulling back
-        // virtual_attractor.pose = current_pose;
-        // if(TARGET_DISTANCE > 0){
-        //     virtual_attractor.pose.position.x = current_pose.position.x + tool_vector_z.x * KEEP_CONTACT_DISTANCE;
-        //     virtual_attractor.pose.position.y = current_pose.position.y + tool_vector_z.y * KEEP_CONTACT_DISTANCE;
-        //     virtual_attractor.pose.position.z = current_pose.position.z + tool_vector_z.z * KEEP_CONTACT_DISTANCE;
-        // }
-        // // Pull up in the direction of the tool
-        // else {
-        //     virtual_attractor.pose.position.x = current_pose.position.x - tool_vector_z.x * KEEP_CONTACT_DISTANCE;
-        //     virtual_attractor.pose.position.y = current_pose.position.y - tool_vector_z.y * KEEP_CONTACT_DISTANCE;
-        //     virtual_attractor.pose.position.z = current_pose.position.z - tool_vector_z.z * KEEP_CONTACT_DISTANCE;
-        // }
-        // Wait for some time, then go to a freeze
-
     }
 
     // Convert to an else? or rearrange the time out cond
@@ -688,25 +761,21 @@ int main(int argc, char** argv) {
         ros::spinOnce();
 
         // Put the virtual attractor at the end effector
-        virtual_attractor.pose = current_pose;
+        // virtual_attractor.pose = current_pose;
         // go to freeze mode
     }
 
     //If we've timed out
     //TODO add a goal check
-    if (loops_so_far > total_number_of_loops){
+    if (loops_so_far > n_steps){
         cout<<"Timed out"<<endl;
         srv.request.status = "Timed out";
         // ROS: for communication between programs
         ros::spinOnce();
 
         // we want to sleep here in compliance for some time
-        cout<<"Loop completed, timer to settle of 5 seconds"<<endl;
-        ros::Duration(5).sleep(); //TODO change this to be a loop still checking the goal and while(ros::ok())
+        cout<<"Interpolation completed, will settle"<<endl;
 
-        // Put the virtual attractor at the end effector
-        virtual_attractor.pose = current_pose;
-        // go to freeze mode
     }
 
     // If the freeze service was called (like a user interrupt)
@@ -717,31 +786,14 @@ int main(int argc, char** argv) {
         // ROS: for communication between programs
         ros::spinOnce();
 
-        // Put the virtual attractor at the end effector
-        // virtual_attractor.pose = current_pose; // may be useless here, but setting it anyways just in case
-
-        // go to freeze mode
     }
 
 
-    // // debug out
-    // cout<<"Tool Vec Z"<<endl;
-    // cout<<tool_vector_z<<endl;
-    // cout<<"Task Vec Z"<<endl;
-    // cout<<task_vector_z<<endl<<endl;
-
     // ROS: for communication between programs
+    ros::spinOnce();
     virtual_attractor_publisher.publish(virtual_attractor);
     naptime.sleep();
 
-    // If we have crossed the effort limit, we want the program to wait for 30 seconds before going to freeze mode, to allow the system to settle
-    // if(effort_limit_crossed){
-    //     ros::Duration(30).sleep();
-    // }
-    // if(target_reached){
-    //     ros::Duration(5).sleep();
-    // }
-    
     // Go to freeze mode (if not already in it)
 
     // ROS: Call service to send reason for program end to buffer.cpp

@@ -174,6 +174,7 @@ add_executable(accommodation_controller_with_bumpless_transitions src/accommodat
 add_executable(buffer src/buffer.cpp)
 
 add_executable(freeze_mode_accommodation_controller src/freeze_mode_accommodation_controller.cpp)
+add_executable(multi_frame_accommodation_controller src/multi_frame_accommodation_controller.cpp)
 add_executable(simple_joint_commander src/simple_joint_commander.cpp)
 
 
@@ -318,6 +319,11 @@ target_link_libraries(freeze_mode_accommodation_controller
   irb120_accomodation_control
   irb120_fk_ik
  )
+ target_link_libraries(multi_frame_accommodation_controller
+   ${catkin_LIBRARIES}
+   irb120_accomodation_control
+   irb120_fk_ik
+  )
  target_link_libraries(simple_joint_commander
   ${catkin_LIBRARIES}
   irb120_accomodation_control

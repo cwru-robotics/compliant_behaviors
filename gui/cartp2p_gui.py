@@ -12,7 +12,7 @@ import time
 delay_len = 0
 
 # List of options for preset values, to be associated with related values in each function
-options = ['Peg', 'Bottle_Cap', 'Cutting', 'Tool', 'Task']
+options = ['Peg', 'Bottle_Cap', 'Cutting', 'Tool', 'Task', 'Stowage']
 selected_option = 3
 
 class Application(tk.Frame):
@@ -91,7 +91,7 @@ class Application(tk.Frame):
                 sticky=tk.NSEW, pady=5, padx=2)
 
 
-        # Force Moment Accomodation (Present in both motion and orientation control tabs)
+        #! Force Moment Accomodation (Present in both motion and orientation control tabs)
         # MOTION CONTROL FMA
         self.restore_wrench_eq_label = tk.Label(self.rwe_control,
                 text='Limp Mode:',
@@ -123,7 +123,9 @@ class Application(tk.Frame):
         self.restore_wrench_eq_preset_2.grid(row=5, column=3,
                 sticky=tk.NSEW, pady=5, padx=2)
 
-        # Cart P2P Label and Submission Button
+        #! Cart P2P 
+
+        # Label and Submission Button
         self.cartp2p_label = tk.Label(self.motion_control,
                                                text='Cart P2PTWL:',
                                                font='Courier 20 bold')
@@ -206,6 +208,9 @@ class Application(tk.Frame):
         self.cart_rot_z = tk.Entry(self.motion_control, width=12, font='Courier 20 bold')
         self.cart_rot_z.grid(row=4, column=5, sticky=tk.NSEW, pady=5, padx=2)
 
+
+        self.cart_bumpless = ttk.Checkbutton(self.motion_control, text='Bumpless')
+        self.cart_bumpless.grid(row=2, column=0, sticky=tk.NSEW, pady=5, padx=2)
 
         #! Joint Control UI
         
@@ -322,7 +327,7 @@ class Application(tk.Frame):
         self.joint_6.grid(row=4, column=5, sticky=tk.NSEW, pady=5, padx=2)
 
 
-        # Torsional Wiggle Pull
+        #! Torsional Wiggle Pull
 
         self.torsional_wiggle_pull_label = \
             tk.Label(self.wiggle_control, text='Torsional Wiggle Pull:'
@@ -355,7 +360,7 @@ class Application(tk.Frame):
         self.torsional_wiggle_pull_pre_2.grid(row=0, column=3,
                 sticky=tk.NSEW, pady=5, padx=2)
 
-        # Torsional Wiggle Push
+        #! Torsional Wiggle Push
 
         self.torsional_wiggle_push_label = \
             tk.Label(self.wiggle_control, text='Torsional Wiggle Push:'
@@ -388,7 +393,7 @@ class Application(tk.Frame):
         self.torsional_wiggle_push_pre_2.grid(row=1, column=3,
                 sticky=tk.NSEW, pady=5, padx=2)
 
-        # Translational Wiggle Pull
+        #! Translational Wiggle Pull
 
         self.translational_wiggle_pull_label = \
             tk.Label(self.wiggle_control,
@@ -422,7 +427,7 @@ class Application(tk.Frame):
         self.translational_wiggle_pull_pre_2.grid(row=2, column=3,
                 sticky=tk.NSEW, pady=5, padx=2)
 
-        # Translational Wiggle Push
+        #! Translational Wiggle Push
 
         self.translational_wiggle_push_label = \
             tk.Label(self.wiggle_control,
@@ -559,15 +564,19 @@ class Application(tk.Frame):
             rot_z = 0
 
         print(x,y,z,rot_x,rot_y,rot_z)
-        
+        bump = False
+        if self.cart_bumpless.instate(['selected']):
+            bump = 1
+        else:
+            bump = 0
         command = \
-            'rosrun behavior_algorithms ptwl_cartp2p _trans_x:={0} _trans_y:={1} _trans_z:={2} _rot_x:={3} _rot_y:={4} _rot_z:={5} _param_set:={6}'.format(x,y,z,rot_x,rot_y,rot_z,self.parameter_set.get())
+            'rosrun behavior_algorithms ptwl_cartp2p _trans_x:={0} _trans_y:={1} _trans_z:={2} _rot_x:={3} _rot_y:={4} _rot_z:={5} _param_set:={6} _bumpless:={7}'.format(x,y,z,rot_x,rot_y,rot_z,self.parameter_set.get(),bump)
         
 
         print(command)
 
         time.sleep(delay_len)
-        os.system(command)
+        # os.system(command)
         time.sleep(delay_len)
         
     
@@ -783,29 +792,6 @@ class Application(tk.Frame):
         os.system('rosrun behavior_algorithms translational_wiggle_push _wiggle_time:=5'
                   )  
         time.sleep(delay_len)
-
-    def zero_forces(self):
-        time.sleep(delay_len)
-        os.system('rosservice call /robotiq_ft_sensor_acc "command_id: 8"')  
-        time.sleep(delay_len)
-
-    def set_task_frame(self):
-        time.sleep(delay_len)
-        os.system('rosservice call /task_frame_service')  
-        time.sleep(delay_len)
-
-    def open_gripper(self):
-        time.sleep(delay_len)
-        os.system("rosservice call /grip '[{id: 1, state: false}, {id: 2, state: true}]'")
-        time.sleep(0.5)
-        time.sleep(delay_len)
-
-    def close_gripper(self):
-        time.sleep(delay_len)
-        os.system("rosservice call /grip '[{id: 1, state: true}, {id: 2, state: false}]'")
-        time.sleep(0.5)
-        time.sleep(delay_len)
-
 
     def parse_entry(self):
         # print("output from text box")
