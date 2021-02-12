@@ -13,7 +13,7 @@ delay_len = 0
 
 # List of options for preset values, to be associated with related values in each function
 options = ['Peg', 'Bottle_Cap', 'Cutting', 'Tool', 'Task', 'Stowage']
-selected_option = 3
+selected_option = 4
 
 class Application(tk.Frame):
 
@@ -576,7 +576,7 @@ class Application(tk.Frame):
         print(command)
 
         time.sleep(delay_len)
-        # os.system(command)
+        os.system(command)
         time.sleep(delay_len)
         
     

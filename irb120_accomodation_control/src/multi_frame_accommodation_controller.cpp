@@ -1,12 +1,14 @@
-//Updated 2/1/2021
+//Updated 2/1/2021 //! FT 
 //Surag Balajepalli, Matthew Haberbusch, and Rahul Pokharna and Quan Nguyen
 //subscribes to a 'virtual attractor' pose
-//Performs accommodation control in a set frame
+//Performs accommodation control in a set frame, all with the inteeraction port of the FT sensor
 
 // ROS: include libraries
 #include <irb120_accomodation_control/irb120_accomodation_control.h>
 #include <irb120_accomodation_control/freeze_service.h>
 #include <irb120_accomodation_control/set_task_frame.h>
+#include <irb120_accomodation_control/set_frame.h>
+#include <irb120_accomodation_control/matrix_msg.h> // not sure if this is correct
 #include <cmath>
 #include <Eigen/QR>
 #include <Eigen/Dense>
@@ -14,6 +16,8 @@
 #include <std_msgs/Float64.h>
 #include <std_msgs/Float64MultiArray.h>
 #include <std_msgs/Int8.h>
+#include <std_msgs/String.h>
+#include <geometry_msgs/Vector3.h>
 #include <ros/ros.h> 
 #include <string.h>
 #include <stdio.h>
@@ -42,12 +46,18 @@ Eigen::Quaterniond virt_quat;
 bool virtual_attractor_established = false; 
 bool jnt_state_update = false;
 
+// initialize our K matrix, and our current frame
+string current_frame = "tool";
+std_msgs::String current_frame_msg;
+// May want to define a 6x6, and get submatrices
+Eigen::Vector3d k_trans, k_rot;
+Eigen::MatrixXd k_combined = Eigen::MatrixXd::Zero(6,6);
+
 // Declare variables of tool frame vectors for skills to use. 
 Eigen::Affine3d tool_with_respect_to_robot_;
 geometry_msgs::Vector3 x_vec_message;
 geometry_msgs::Vector3 y_vec_message;
 geometry_msgs::Vector3 z_vec_message;
-
 
 // Declare variables for task frame vectors
 Eigen::Affine3d task_frame_with_respect_to_robot_;
@@ -74,6 +84,19 @@ geometry_msgs::Vector3 x_vec_stowage_message_;
 geometry_msgs::Vector3 y_vec_stowage_message_;
 geometry_msgs::Vector3 z_vec_stowage_message_;
 geometry_msgs::PoseStamped stowage_frame_pose_stamped;
+
+
+// Declare variables for ft frame vectors
+Eigen::MatrixXd ft_frame_rotation_matrix_;
+// Declare variables for the ft frame
+Eigen::Vector3d x_vec_ft_;
+Eigen::Vector3d y_vec_ft_;
+Eigen::Vector3d z_vec_ft_;
+// Frame of the fr frame vectors for skills to use.
+geometry_msgs::Vector3 x_vec_ft_message_;
+geometry_msgs::Vector3 y_vec_ft_message_;
+geometry_msgs::Vector3 z_vec_ft_message_;
+geometry_msgs::PoseStamped ft_frame_pose_stamped;
 
 
 // MATH: Function converts a rotation matrix to a vector of angles (phi_x, phi_y, phi_z)
@@ -225,6 +248,8 @@ bool freezeServiceCallback(irb120_accomodation_control::freeze_serviceRequest &r
 	return true;
 }
 
+//TODO Update frame callback, will take a set_frame.srv and then read string to set current kmat as the appropriate preset, return those values and the string name of the current frame
+
 // Click a button and set the task frame to be the current tool frame
 bool setTaskFrameCallback(irb120_accomodation_control::set_task_frameRequest &request, irb120_accomodation_control::set_task_frameResponse &response) {
 	// Find tool's current x, y, and vector for use in skills 
@@ -250,6 +275,89 @@ bool setTaskFrameCallback(irb120_accomodation_control::set_task_frameRequest &re
 	return true; 
 }
 
+// Click a button and set the task frame to be the current tool frame
+bool setFrameServiceCallback(irb120_accomodation_control::set_frameRequest &request, irb120_accomodation_control::set_frameResponse &response) {
+	string task_name = request.task_name;
+	bool success = true;
+	// do an if else for set tasks with predefined K matrices here, then update the response.updated_frame in the if else, and the last else will be return false, status = no known task sent
+	if (!strcmp(task_name.c_str(), "Peg")){
+		current_frame = "Task";
+		k_trans << 1500,1500,1500;
+		k_rot << 40,40,40;
+		k_combined.topLeftCorner(3,3) = k_trans.asDiagonal();
+		k_combined.bottomRightCorner(3,3) = k_rot.asDiagonal();
+	}
+	else if (!strcmp(task_name.c_str(), "Bottle_Cap")){
+		current_frame = "Task";
+		k_trans << 1500,1500,1500;
+		k_rot << 40,40,40;
+		k_combined.topLeftCorner(3,3) = k_trans.asDiagonal();
+		k_combined.bottomRightCorner(3,3) = k_rot.asDiagonal();
+	}
+	else if (!strcmp(task_name.c_str(), "Tool")){
+		current_frame = "Tool";
+		k_trans << 1500,1500,1500;
+		k_rot << 40,40,40;
+		k_combined.topLeftCorner(3,3) = k_trans.asDiagonal();
+		k_combined.bottomRightCorner(3,3) = k_rot.asDiagonal();
+	}
+	else if (!strcmp(task_name.c_str(), "Cutting")){
+		current_frame = "Task";
+		k_trans << 1500,1500,1500;
+		k_rot << 40,40,40;
+		k_combined.topLeftCorner(3,3) = k_trans.asDiagonal();
+		k_combined.bottomRightCorner(3,3) = k_rot.asDiagonal();
+	}
+	else if (!strcmp(task_name.c_str(), "Task")){
+		current_frame = "Task";
+		k_trans << 1500,1500,1500;
+		k_rot << 40,40,40;
+		k_combined.topLeftCorner(3,3) = k_trans.asDiagonal();
+		k_combined.bottomRightCorner(3,3) = k_rot.asDiagonal();
+	}
+	else if (!strcmp(task_name.c_str(), "Stowage")){
+		current_frame = "Stowage";
+		k_trans << 1500,1500,1500;
+		k_rot << 40,40,40;
+		k_combined.topLeftCorner(3,3) = k_trans.asDiagonal();
+		k_combined.bottomRightCorner(3,3) = k_rot.asDiagonal();
+	}
+	else if (!strcmp(task_name.c_str(), "Quick_Disconnect")){
+		current_frame = "Task";
+		k_trans << 1500,1500,1500;
+		k_rot << 40,40,40;
+		k_combined.topLeftCorner(3,3) = k_trans.asDiagonal();
+		k_combined.bottomRightCorner(3,3) = k_rot.asDiagonal();
+
+		// respose.
+	}
+	else {
+		cout<< "Failed"<<endl<<"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"<<endl;
+		response.status = "Failed to find a known preset.";
+		success = false;
+	}
+
+	// send Updated information back
+	response.updated_frame = current_frame;
+	// update the value of the frame message
+	current_frame_msg.data = current_frame;
+	geometry_msgs::Vector3 trans_vec, rot_vec;
+	trans_vec.x = k_trans.x();
+	trans_vec.y = k_trans.y();
+	trans_vec.z = k_trans.z();
+	rot_vec.x = k_rot.x();
+	rot_vec.y = k_rot.y();
+	rot_vec.z = k_rot.z();
+	response.K_mat.trans_mat = trans_vec;
+	response.K_mat.rot_mat = rot_vec;
+	
+	if(success){
+		cout<< "Success"<<endl<<"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"<<endl;
+		response.status = "new frame set"; // move into each one above, 
+	}
+	return true; 
+}
+
 
 // Main rogram
 int main(int argc, char **argv) {
@@ -267,6 +375,7 @@ int main(int argc, char **argv) {
 	ros::Publisher cart_log_pub = nh.advertise<geometry_msgs::PoseStamped>("cartesian_logger",1); // ROS: Publish the cartesian coordinates of the end effector in the robot coordinate frame
 	ros::Publisher robot_frame_pub = nh.advertise<geometry_msgs::PoseStamped>("robot_frame", 1);  // ROS: Publish a zero pose stamped to visualize the robot frame
 	ros::Publisher task_frame_pub = nh.advertise<geometry_msgs::PoseStamped>("task_frame", 1);	  // ROS: Publish the task frame
+	ros::Publisher ft_frame_pub = nh.advertise<geometry_msgs::PoseStamped>("ft_pose", 1);	  // ROS: Publish the ft frame
 	ros::Publisher stowage_frame_pub = nh.advertise<geometry_msgs::PoseStamped>("stowage_frame", 1); // ROS: Publish the task frame
 	ros::Publisher ft_pub = nh.advertise<geometry_msgs::Wrench>("transformed_ft_wrench",1); // ROS: Publish the force-torque wrench in the robot coordinate frame
 	ros::Publisher virtual_attractor_after_tf = nh.advertise<geometry_msgs::PoseStamped>("tfd_virt_attr",1); // ROS: Publish the virtual attractor pose in the robot coordinate frame
@@ -278,11 +387,23 @@ int main(int argc, char **argv) {
 	ros::Publisher x_vec_task_pub = nh.advertise<geometry_msgs::Vector3>("task_vector_x",1); // ROS: Publish the task coordinate frame's x vector in the robot coordinate frame
 	ros::Publisher y_vec_task_pub = nh.advertise<geometry_msgs::Vector3>("task_vector_y",1); // ROS: Publish the task coordinate frame's y vector in the robot coordinate frame
 	ros::Publisher z_vec_task_pub = nh.advertise<geometry_msgs::Vector3>("task_vector_z",1); // ROS: Publish the task coordinate frame's z vector in the robot coordinate frame
+	ros::Publisher x_vec_stowage_pub = nh.advertise<geometry_msgs::Vector3>("stowage_vector_x",1); // ROS: Publish the stowage coordinate frame's x vector in the robot coordinate frame
+	ros::Publisher y_vec_stowage_pub = nh.advertise<geometry_msgs::Vector3>("stowage_vector_y",1); // ROS: Publish the stowage coordinate frame's y vector in the robot coordinate frame
+	ros::Publisher z_vec_stowage_pub = nh.advertise<geometry_msgs::Vector3>("stowage_vector_z",1); // ROS: Publish the stowage coordinate frame's z vector in the robot coordinate frame
+	ros::Publisher x_vec_ft_pub = nh.advertise<geometry_msgs::Vector3>("ft_vector_x",1); // ROS: Publish the ft coordinate frame's x vector in the robot coordinate frame
+	ros::Publisher y_vec_ft_pub = nh.advertise<geometry_msgs::Vector3>("ft_vector_y",1); // ROS: Publish the ft coordinate frame's y vector in the robot coordinate frame
+	ros::Publisher z_vec_ft_pub = nh.advertise<geometry_msgs::Vector3>("ft_vector_z",1); // ROS: Publish the ft coordinate frame's z vector in the robot coordinate frame
 
+	ros::Publisher current_frame_pub = nh.advertise<std_msgs::String>("current_frame",1); // ROS: Publish the name of the current frame 
+
+	// ROS: Service to set the task frame to the current EE pose
 	ros::ServiceServer task_frame_service = nh.advertiseService("task_frame_service",setTaskFrameCallback);
 
 	// ROS: Service to toggle freeze mode
 	ros::ServiceServer freeze_service = nh.advertiseService("freeze_service",freezeServiceCallback);
+
+	// ROS: Service to update the current frame of compliance
+	ros::ServiceServer frame_service = nh.advertiseService("set_frame_service",setFrameServiceCallback);
 
 	// Set the freeze mode status to off. This does not toggle freeze mode. It's only for display purposes.
 	freeze_mode_status.data = 1; // or here make it frozen, and set the mode to be 1 by default
@@ -309,7 +430,15 @@ int main(int argc, char **argv) {
 	double B_virtual_rotational = 200; // was 100
 	double K_virtual_translational = 1500; // was 1000
 	double K_virtual_angular = 40; // was 40
-	
+
+	//TODO Define the k_virt 
+	k_trans << 1500,1500,1500;
+	k_rot << 40,40,40;
+	k_combined.topLeftCorner(3,3) = k_trans.asDiagonal();
+	k_combined.bottomRightCorner(3,3) = k_rot.asDiagonal();
+	current_frame = "Task";
+	current_frame_msg.data = current_frame;
+
 	// Declare joint state, pose stamped, pose, and wrench variables
 	sensor_msgs::JointState desired_joint_state;
 	geometry_msgs::PoseStamped cartesian_log, virtual_attractor_log, bumpless_virtual_attractor_log;
@@ -440,7 +569,7 @@ int main(int argc, char **argv) {
 	y_vec_stowage_message_.z = y_vec_stowage_(2);
 	z_vec_stowage_message_.x = z_vec_stowage_(0);
 	z_vec_stowage_message_.y = z_vec_stowage_(1);
-	z_vec_stowage_message_.z = z_vec_stowage_(2);
+	z_vec_stowage_message_.z = z_vec_stowage_(2); 
 
 	// Define stowage frame as a pose stamped
 	stowage_frame_pose_stamped.pose.position.x = stowage_frame_with_respect_to_robot_.translation()(0);
@@ -452,6 +581,32 @@ int main(int argc, char **argv) {
 	stowage_frame_pose_stamped.pose.orientation.z = stowage_frame_orientation_quaternion.z();
 	stowage_frame_pose_stamped.pose.orientation.w = stowage_frame_orientation_quaternion.w();
 	stowage_frame_pose_stamped.header.frame_id = "map";
+
+	// Find the ft's x, y, and z vectors with respect to the robot; needed for certain skills
+	ft_frame_rotation_matrix_ = sensor_with_respect_to_robot.linear();
+	x_vec_ft_ = ft_frame_rotation_matrix_.col(0);
+	y_vec_ft_ = ft_frame_rotation_matrix_.col(1);
+	z_vec_ft_ = ft_frame_rotation_matrix_.col(2);
+	x_vec_ft_message_.x = x_vec_ft_(0);
+	x_vec_ft_message_.y = x_vec_ft_(1);
+	x_vec_ft_message_.z = x_vec_ft_(2);
+	y_vec_ft_message_.x = y_vec_ft_(0);
+	y_vec_ft_message_.y = y_vec_ft_(1);
+	y_vec_ft_message_.z = y_vec_ft_(2);
+	z_vec_ft_message_.x = z_vec_ft_(0);
+	z_vec_ft_message_.y = z_vec_ft_(1);
+	z_vec_ft_message_.z = z_vec_ft_(2);
+
+	// Define ft frame as a pose stamped
+	ft_frame_pose_stamped.pose.position.x = sensor_with_respect_to_robot.translation()(0);
+	ft_frame_pose_stamped.pose.position.y = sensor_with_respect_to_robot.translation()(1);
+	ft_frame_pose_stamped.pose.position.z = sensor_with_respect_to_robot.translation()(2);
+	Eigen::Quaterniond ft_frame_orientation_quaternion(sensor_with_respect_to_robot.linear());
+	ft_frame_pose_stamped.pose.orientation.x = ft_frame_orientation_quaternion.x();
+	ft_frame_pose_stamped.pose.orientation.y = ft_frame_orientation_quaternion.y();
+	ft_frame_pose_stamped.pose.orientation.z = ft_frame_orientation_quaternion.z();
+	ft_frame_pose_stamped.pose.orientation.w = ft_frame_orientation_quaternion.w();
+	ft_frame_pose_stamped.header.frame_id = "map";
 
 	// Declare the bumpless virtual attractor's pose
 	Eigen::VectorXd bumpless_virtual_attractor_position(3);
@@ -510,27 +665,27 @@ int main(int argc, char **argv) {
 		
 		// Compute virtual attractor forces
 		// If the controller has just started, use the bumpless virtual attractor
-		if (!freeze_mode && first_loop_after_freeze) {
+		if (!freeze_mode && first_loop_after_freeze) { //TODO Change to be based off of FT sensor
 			// Find bumpless virtual attractor position: the negative force devided by the translational spring constant, plus the end effector position
-			bumpless_virtual_attractor_position = -wrench_with_respect_to_robot.head(3) / K_virtual_translational + current_end_effector_pose.head(3);
+			bumpless_virtual_attractor_position = -wrench_with_respect_to_robot.head(3) / K_virtual_translational + sensor_with_respect_to_robot.translation();
 			// Update virtual attractor position to bumpless virtual attractor position
 			virtual_attractor_pos(0) = bumpless_virtual_attractor_position(0);
 			virtual_attractor_pos(1) = bumpless_virtual_attractor_position(1);
 			virtual_attractor_pos(2) = bumpless_virtual_attractor_position(2);
 			// Find bumpless virtual attractor angles: (the negative torque divided by the anglular spring constant) plus (the angle of the tool with respect to the robot)
-			bumpless_virtual_attractor_angles(0) =  -wrench_with_respect_to_robot(3) / K_virtual_angular + decompose_rot_mat(tool_with_respect_to_robot_.linear())(0);
-			bumpless_virtual_attractor_angles(1) =  -wrench_with_respect_to_robot(4) / K_virtual_angular + decompose_rot_mat(tool_with_respect_to_robot_.linear())(1);
-			bumpless_virtual_attractor_angles(2) =  -wrench_with_respect_to_robot(5) / K_virtual_angular + decompose_rot_mat(tool_with_respect_to_robot_.linear())(2);
+			bumpless_virtual_attractor_angles(0) =  -wrench_with_respect_to_robot(3) / K_virtual_angular + decompose_rot_mat(sensor_with_respect_to_robot.linear())(0);
+			bumpless_virtual_attractor_angles(1) =  -wrench_with_respect_to_robot(4) / K_virtual_angular + decompose_rot_mat(sensor_with_respect_to_robot.linear())(1);
+			bumpless_virtual_attractor_angles(2) =  -wrench_with_respect_to_robot(5) / K_virtual_angular + decompose_rot_mat(sensor_with_respect_to_robot.linear())(2);
 			// Update the virtual attractor rotation matrix
 			virtual_attractor_rotation_matrix = rotation_matrix_from_euler_angles(bumpless_virtual_attractor_angles);
 
 			// Calculate the virtual forces
-			virtual_force.head(3) = K_virtual_translational * (virtual_attractor_pos - current_end_effector_pose.head(3));
-			virtual_force.tail(3) = K_virtual_angular * (delta_phi_from_rots(tool_with_respect_to_robot_.linear(), virtual_attractor_rotation_matrix));
+			virtual_force.head(3) = K_virtual_translational * (virtual_attractor_pos - sensor_with_respect_to_robot.translation());
+			virtual_force.tail(3) = K_virtual_angular * (delta_phi_from_rots(sensor_with_respect_to_robot.linear(), virtual_attractor_rotation_matrix));
 			// Output 
 			cout<<"Bumpless attractor used"<<endl;
 			cout<<"wrench torques"<<endl<<wrench_with_respect_to_robot.tail(3)<<endl;
-			cout<<"decomposed angles of the tool frame"<<endl<<decompose_rot_mat(tool_with_respect_to_robot_.linear())<<endl;
+			cout<<"decomposed angles of the tool frame"<<endl<<decompose_rot_mat(sensor_with_respect_to_robot.linear())<<endl;
 			cout<<"bumpless virtual attractor pose: "<<endl;
 			cout<<bumpless_virtual_attractor_position<<endl;
 		}
@@ -540,8 +695,8 @@ int main(int argc, char **argv) {
 			// If we have established a virtual attractor
 			if(virtual_attractor_established) {
 				// Calculate the virtual forces
-				virtual_force.head(3) = K_virtual_translational * (virtual_attractor_pos - current_end_effector_pose.head(3));
-				virtual_force.tail(3) = K_virtual_angular * (delta_phi_from_rots(tool_with_respect_to_robot_.linear(), virtual_attractor_rotation_matrix));
+				virtual_force.head(3) = K_virtual_translational * (virtual_attractor_pos - sensor_with_respect_to_robot.translation());
+				virtual_force.tail(3) = K_virtual_angular * (delta_phi_from_rots(sensor_with_respect_to_robot.linear(), virtual_attractor_rotation_matrix));
 				// Output
 				cout<<"virtual attractor pose"<<endl;
 				cout<<virtual_attractor_pos<<endl;
@@ -608,6 +763,17 @@ int main(int argc, char **argv) {
 		cartesian_log.header.stamp = ros::Time::now();
 		cart_log_pub.publish(cartesian_log);
 
+		// Publish cartesian coordinates of FT sensor
+		ft_frame_pose_stamped.pose.position.x = sensor_with_respect_to_robot.translation()(0);
+		ft_frame_pose_stamped.pose.position.y = sensor_with_respect_to_robot.translation()(1);
+		ft_frame_pose_stamped.pose.position.z = sensor_with_respect_to_robot.translation()(2);
+		Eigen::Quaterniond ft_frame_orientation_quaternion(sensor_with_respect_to_robot.linear());
+		ft_frame_pose_stamped.pose.orientation.x = ft_frame_orientation_quaternion.x();
+		ft_frame_pose_stamped.pose.orientation.y = ft_frame_orientation_quaternion.y();
+		ft_frame_pose_stamped.pose.orientation.z = ft_frame_orientation_quaternion.z();
+		ft_frame_pose_stamped.pose.orientation.w = ft_frame_orientation_quaternion.w();
+		ft_frame_pub.publish(ft_frame_pose_stamped);
+
 		// Publish virtual attractor coordinates
 		virtual_attractor_log.pose.position.x = virtual_attractor_pos(0);
 		virtual_attractor_log.pose.position.y = virtual_attractor_pos(1);
@@ -653,6 +819,21 @@ int main(int argc, char **argv) {
 		transformed_wrench.torque.z = wrench_with_respect_to_robot(5);
 		ft_pub.publish(transformed_wrench);
 
+		// Update FT vec frame
+		ft_frame_rotation_matrix_ = sensor_with_respect_to_robot.linear();
+		x_vec_ft_ = ft_frame_rotation_matrix_.col(0);
+		y_vec_ft_ = ft_frame_rotation_matrix_.col(1);
+		z_vec_ft_ = ft_frame_rotation_matrix_.col(2);
+		x_vec_ft_message_.x = x_vec_ft_(0);
+		x_vec_ft_message_.y = x_vec_ft_(1);
+		x_vec_ft_message_.z = x_vec_ft_(2);
+		y_vec_ft_message_.x = y_vec_ft_(0);
+		y_vec_ft_message_.y = y_vec_ft_(1);
+		y_vec_ft_message_.z = y_vec_ft_(2);
+		z_vec_ft_message_.x = z_vec_ft_(0);
+		z_vec_ft_message_.y = z_vec_ft_(1);
+		z_vec_ft_message_.z = z_vec_ft_(2);
+
 		// Publish tool frame vectors
 		x_vec_pub.publish(x_vec_message);
 		y_vec_pub.publish(y_vec_message);
@@ -663,8 +844,22 @@ int main(int argc, char **argv) {
 		y_vec_task_pub.publish(y_vec_task_message_);
 		z_vec_task_pub.publish(z_vec_task_message_);
 
+		// Publish stowage frame vectors
+		x_vec_stowage_pub.publish(x_vec_stowage_message_);
+		y_vec_stowage_pub.publish(y_vec_stowage_message_);
+		z_vec_stowage_pub.publish(z_vec_stowage_message_);
+
+		// Publish ft frame vectors
+		x_vec_ft_pub.publish(x_vec_ft_message_);
+		y_vec_ft_pub.publish(y_vec_ft_message_);
+		z_vec_ft_pub.publish(z_vec_ft_message_);
+
+
 		// Pulish freeze mode status
 		freeze_mode_pub.publish(freeze_mode_status);
+
+		// Publish current frame
+		current_frame_pub.publish(current_frame_msg);
 
 		// Set freeze/latched mode checkers
 		if (freeze_mode) first_loop_after_freeze = true;

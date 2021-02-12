@@ -18,10 +18,14 @@
 #include <std_msgs/Int8.h>
 #include <behavior_algorithms/status_service.h>
 #include <irb120_accomodation_control/freeze_service.h>
+#include <irb120_accomodation_control/set_frame.h>
+#include <irb120_accomodation_control/matrix_msg.h>
 using namespace std;
 
 // Declare variables
 geometry_msgs::Pose current_pose;
+geometry_msgs::Pose ft_pose;
+geometry_msgs::Pose interaction_pose;
 geometry_msgs::PoseStamped virtual_attractor;
 geometry_msgs::Wrench ft_in_robot_frame; //TODO use for bumpless
 
@@ -39,6 +43,9 @@ geometry_msgs::Vector3 task_vector_z;
 geometry_msgs::Vector3 stowage_vector_x;
 geometry_msgs::Vector3 stowage_vector_y;
 geometry_msgs::Vector3 stowage_vector_z;
+geometry_msgs::Vector3 ft_vector_x;
+geometry_msgs::Vector3 ft_vector_y;
+geometry_msgs::Vector3 ft_vector_z;
 
 std_msgs::Int8 freeze_mode_status;
 bool freeze_mode; // maybe don't define it as having a starting value? 
@@ -113,6 +120,22 @@ void stowage_frame_callback(const geometry_msgs::PoseStamped& stowage_frame_from
     stowage_frame = stowage_frame_from_sub;
 }
 
+void ft_vector_x_callback(const geometry_msgs::Vector3& ft_vector_msg_x) {
+    ft_vector_x = ft_vector_msg_x;
+}
+
+void ft_vector_y_callback(const geometry_msgs::Vector3& ft_vector_msg_y) {
+    ft_vector_y = ft_vector_msg_y;
+}
+
+void ft_vector_z_callback(const geometry_msgs::Vector3& ft_vector_msg_z) {
+    ft_vector_z = ft_vector_msg_z;
+}
+
+void ft_pose_callback(const geometry_msgs::PoseStamped& ft_pose_from_sub) {
+    ft_pose = ft_pose_from_sub.pose;
+}
+
 void freeze_status_callback(const std_msgs::Int8& freeze_status_msg) {
     freeze_updated = true;
     freeze_mode_status = freeze_status_msg;
@@ -132,6 +155,7 @@ int main(int argc, char** argv) {
     //! Can just change transformed FT wrench to be normal ft wrench!!!!!!(only created in acc controller, we should read FT in tool frame, not robot base)
 
     //! We want both the TF FT, and the Tool FT
+    //TODO Subscribe to current bumpless start, and just use that as the start pose? or set to be FT frame if bumpless is false
     ros::Subscriber cartesian_state_subscriber = nh.subscribe("cartesian_logger",1, cartesian_state_callback); // subscribe to the topic publishing the cartesian state of the end effector
     ros::Subscriber ft_subscriber = nh.subscribe("transformed_ft_wrench",1,ft_callback);                       // subscribe to the force/torque sensor data
     ros::Subscriber ft_sensor_sub = nh.subscribe("robotiq_ft_wrench", 1, ft_sensor_callback);                  // ROS: Subscribe to the force-torque sensor wrench
@@ -146,11 +170,16 @@ int main(int argc, char** argv) {
     ros::Subscriber stowage_vector_sub_y = nh.subscribe("stowage_vector_y",1,stowage_vector_y_callback);                  // subscribe to the value of the stowage vector in the z, published from the accomodation controller
     ros::Subscriber stowage_vector_sub_z = nh.subscribe("stowage_vector_z",1,stowage_vector_z_callback);                  // subscribe to the value of the stowage vector in the z, published from the accomodation controller
     ros::Subscriber stowage_frame_sub = nh.subscribe("stowage_frame",1,stowage_frame_callback);                         // subscribe to the stowage frame published by the accomodation controller
+    ros::Subscriber ft_vector_sub_x = nh.subscribe("ft_vector_x",1,ft_vector_x_callback);                  // subscribe to the value of the ft vector in the z, published from the accomodation controller
+    ros::Subscriber ft_vector_sub_y = nh.subscribe("ft_vector_y",1,ft_vector_y_callback);                  // subscribe to the value of the ft vector in the z, published from the accomodation controller
+    ros::Subscriber ft_vector_sub_z = nh.subscribe("ft_vector_z",1,ft_vector_z_callback);                  // subscribe to the value of the ft vector in the z, published from the accomodation controller
+    ros::Subscriber ft_pose_sub = nh.subscribe("ft_pose",1,ft_pose_callback);                         // subscribe to the ft frame published by the accomodation controller
     ros::Publisher virtual_attractor_publisher = nh.advertise<geometry_msgs::PoseStamped>("Virt_attr_pose",1); // publish the pose of the virtual attractor for the accomodation controller 
 
     // ROS: Services used in conjunction with buffer.cpp to have delayed program status sent to operator
     ros::ServiceClient client = nh.serviceClient<behavior_algorithms::status_service>("status_service");
     ros::ServiceClient client_start = nh.serviceClient<behavior_algorithms::status_service>("start_service");
+    ros::ServiceClient client_set_frame = nh.serviceClient<behavior_algorithms::status_service>("start_service");
     
     // Define services and subscribers for the freeze mode status
 
@@ -168,6 +197,8 @@ int main(int argc, char** argv) {
     //ROS: Service for toggling freeze mode
     irb120_accomodation_control::freeze_service freeze_srv;
 
+    irb120_accomodation_control::set_frame set_frame_srv;
+    
     ROS_INFO("after setup");
     /*
     How to tune params:
@@ -187,7 +218,7 @@ int main(int argc, char** argv) {
     MAX_ANG: The maximum angular velocity for rotation (Used for cartP2P) in rad/s
     */
     double DT = 0.01, FORCE_THRESHOLD = 12, ROTATION_ERROR_THRESHOLD = 0.03; 
-    double KEEP_CUTTING_DISTANCE = 0, MAX_VEL = 0.01, MAX_ANG = 0.2, TRANSLATION_ERROR_THRESHOLD = 0.001; 
+    double KEEP_CUTTING_DISTANCE = 0, MAX_VEL = 0.007, MAX_ANG = 0.1, TRANSLATION_ERROR_THRESHOLD = 0.002; // slowed it down and made the check more lenient
     //! These names may want to change
     double x = 0, y = 0, z = 0;
     double psi = 0, theta = 0, phi = 0; 
@@ -205,6 +236,9 @@ int main(int argc, char** argv) {
     
     // Parameter if we are bumpless or not
     bool bumpless = false;
+
+    // Parameter for if we are using the FT or the Tool Pose
+    bool interaction_port_is_ft = true;
 
     // Variable for which set of parameters to use
     string param_set = "Peg";
@@ -354,6 +388,25 @@ int main(int argc, char** argv) {
     //TODO ADD PARAM FOR TOOL EXCHANGE
     ROS_INFO("after storing params");
 
+    //TODO call service set_frame_service
+    set_frame_srv.request.task_name = param_set.c_str();
+
+    // Define our new kmatrix to store value from the set frame service, used for the bumpless start
+    irb120_accomodation_control::matrix_msg k_mat;
+    if(client_set_frame.call(set_frame_srv)){
+        k_mat = set_frame_srv.response.K_mat;
+        cout<<set_frame_srv.response.status<<endl<<"Current frame: "<<set_frame_srv.response.updated_frame<<endl;
+        ROS_INFO_STREAM(set_frame_srv.response.updated_frame);
+    }
+
+    // If we are in the interaction port for the FT, then our starting pose and calculations are all done wrt FT
+    if(interaction_port_is_ft){ //! Decide where we want this selected, maybe it is something we get from the acc controller? published somehow
+        interaction_pose = ft_pose;
+    }
+    else{
+        interaction_pose = current_pose;
+    }
+
     // ROS_INFO("Output from parameter for target_distance; %f", TARGET_DISTANCE); 
 
     // With labeled parameter, now call service to send message that program will start
@@ -364,40 +417,42 @@ int main(int argc, char** argv) {
     srv.request.status = request_status.str();
 
     // ROS: Call the client start service, used in buffer.cpp for operator output
-    if(client_start.call(srv)){
-        // success
-        cout<<"Called buffer service_start with name succesfully"<<endl;
-    }
-    else{
-        // failed to call service
-        // ROS_ERROR("Failed to call service service_start");
-        naptime.sleep();
-    }
+    // if(client_start.call(srv)){
+    //     // success
+    //     cout<<"Called buffer service_start with name succesfully"<<endl;
+    // }
+    // else{
+    //     // failed to call service
+    //     // ROS_ERROR("Failed to call service service_start");
+    //     naptime.sleep();
+    // }
 
     // Set as unknown in case program somehow progresses past loop without any of the 3 conditions
     srv.request.status = "Unkown";
 
     // ROS: Wait until we have position data. Our default position is 0.
-    while(current_pose.position.x == 0 || tool_vector_z.x == 0 || task_vector_z.x == 0) ros::spinOnce();
+    while(current_pose.position.x == 0 || tool_vector_z.x == 0 || task_vector_z.x == 0 || ft_pose.position.x == 0) ros::spinOnce();
 
-    //! We want to use the bumpless start, not just the tool pose. We want the initial attractor pose, or do we just interpolate the way nasa is doing it
+    //! We want to use the bumpless start, not just the ft pose, we can either subscribe to the bumpless started pose of the virtual attractor (when we toggle we can get the pose of the attractor? or sub to it)
+
+    //TODO change all to be in the FT frame
     geometry_msgs::Vector3 start_position;
-    start_position.x = current_pose.position.x;
-    start_position.y = current_pose.position.y;
-    start_position.z = current_pose.position.z;
+    start_position.x = interaction_pose.position.x;
+    start_position.y = interaction_pose.position.y;
+    start_position.z = interaction_pose.position.z;
     //TODO Subscribe to the TFed wrench and utilize it for the initial attractor position
 
     Eigen::Quaterniond start_pose_quat;
-    start_pose_quat.x() = current_pose.orientation.x;
-    start_pose_quat.y() = current_pose.orientation.y;
-    start_pose_quat.z() = current_pose.orientation.z;
-    start_pose_quat.w() = current_pose.orientation.w;
+    start_pose_quat.x() = interaction_pose.orientation.x;
+    start_pose_quat.y() = interaction_pose.orientation.y;
+    start_pose_quat.z() = interaction_pose.orientation.z;
+    start_pose_quat.w() = interaction_pose.orientation.w;
 
-    Eigen::Quaterniond current_pose_quat;
-    current_pose_quat.x() = current_pose.orientation.x;
-    current_pose_quat.y() = current_pose.orientation.y;
-    current_pose_quat.z() = current_pose.orientation.z;
-    current_pose_quat.w() = current_pose.orientation.w;
+    Eigen::Quaterniond interaction_pose_quat;
+    interaction_pose_quat.x() = interaction_pose.orientation.x;
+    interaction_pose_quat.y() = interaction_pose.orientation.y;
+    interaction_pose_quat.z() = interaction_pose.orientation.z;
+    interaction_pose_quat.w() = interaction_pose.orientation.w;
     
     // Convert the geometry quaternion to a quaternion
     Eigen::Quaterniond task_frame_quat;
@@ -529,9 +584,9 @@ int main(int argc, char** argv) {
 
     // Current translation code
     geometry_msgs::Vector3 vector_to_goal;
-    vector_to_goal.x = ending_position.x - current_pose.position.x;
-    vector_to_goal.y = ending_position.y - current_pose.position.y;
-    vector_to_goal.z = ending_position.z - current_pose.position.z;
+    vector_to_goal.x = ending_position.x - interaction_pose.position.x;
+    vector_to_goal.y = ending_position.y - interaction_pose.position.y;
+    vector_to_goal.z = ending_position.z - interaction_pose.position.z;
 
     // Calculate the distance we want to travel, then find the number of steps we need to do to be below the max velocity (param)
     double dist = sqrt(pow(vector_to_goal.x,2) + pow(vector_to_goal.y,2) + pow(vector_to_goal.z,2));
@@ -580,7 +635,7 @@ int main(int argc, char** argv) {
     bool target_reached, pos_reached, rot_reached;
 
     pos_reached = goal_dist <= TRANSLATION_ERROR_THRESHOLD;
-    rot_reached = current_pose_quat.isApprox(end_pose_quat, ROTATION_ERROR_THRESHOLD);
+    rot_reached = interaction_pose_quat.isApprox(end_pose_quat, ROTATION_ERROR_THRESHOLD);
 
     target_reached = pos_reached && rot_reached;
 
@@ -607,7 +662,7 @@ int main(int argc, char** argv) {
 
 
     //TODO Bumpless start here, after making sure we have not crossed the effort limit already, confirm how we want to do this
-    virtual_attractor.pose = current_pose;
+    virtual_attractor.pose = interaction_pose; //! CHANGE TO BE FT
 
 
     // Used in the loop to determine the run time and time out additional length to allow it to settle in the main function
@@ -626,6 +681,15 @@ int main(int argc, char** argv) {
     while( (loops_so_far < total_number_of_loops) && !effort_limit_crossed && !target_reached && !freeze_mode) {
         // ROS: for communication between programs
         ros::spinOnce();
+        cout<<"Loops so far: "<<loops_so_far<<endl<<"n_steps: "<<n_steps<<endl<<"total_number_of_loops: "<<total_number_of_loops<<endl;
+
+        // If we are in the interaction port for the FT, then our starting pose and calculations are all done wrt FT
+        if(interaction_port_is_ft){ 
+            interaction_pose = ft_pose;
+        }
+        else{
+            interaction_pose = current_pose;
+        }
         // cout << "Press enter to continue";
         // cin >> temple;
 
@@ -655,21 +719,21 @@ int main(int argc, char** argv) {
             virtual_attractor.pose.orientation.z = new_virtual_attractor_quat.z();
             virtual_attractor.pose.orientation.w = new_virtual_attractor_quat.w();
         }
-        else if (loops_so_far = n_steps){
+        else if (loops_so_far >= n_steps){
             cout<<"Interpolation complete"<<endl;
             ROS_INFO_STREAM("Interpolation complete");
         }
         
         // Update values for goal checks 
-        current_pose_quat.x() = current_pose.orientation.x;
-        current_pose_quat.y() = current_pose.orientation.y;
-        current_pose_quat.z() = current_pose.orientation.z;
-        current_pose_quat.w() = current_pose.orientation.w;
+        interaction_pose_quat.x() = interaction_pose.orientation.x;
+        interaction_pose_quat.y() = interaction_pose.orientation.y;
+        interaction_pose_quat.z() = interaction_pose.orientation.z;
+        interaction_pose_quat.w() = interaction_pose.orientation.w;
 
         // Update vector to goal for target reached check
-        vector_to_goal.x = ending_position.x - current_pose.position.x;
-        vector_to_goal.y = ending_position.y - current_pose.position.y;
-        vector_to_goal.z = ending_position.z - current_pose.position.z;
+        vector_to_goal.x = ending_position.x - interaction_pose.position.x;
+        vector_to_goal.y = ending_position.y - interaction_pose.position.y;
+        vector_to_goal.z = ending_position.z - interaction_pose.position.z;
 
         // Check rotation
 
@@ -681,7 +745,7 @@ int main(int argc, char** argv) {
         // If it is past the plane perpendicular to the direction of movement at the goal position, then we have reached the target 
         // pos_reached = dot_product <= 0; //! Check the signs here
         pos_reached = goal_dist <= TRANSLATION_ERROR_THRESHOLD;
-        rot_reached = current_pose_quat.isApprox(end_pose_quat, ROTATION_ERROR_THRESHOLD);
+        rot_reached = interaction_pose_quat.isApprox(end_pose_quat, ROTATION_ERROR_THRESHOLD);
 
         target_reached = pos_reached && rot_reached;
 
@@ -701,7 +765,7 @@ int main(int argc, char** argv) {
         naptime.sleep();
 
         // Print current position
-        // cout<<"Current position: "<<endl<<abs(current_pose.position.x)<<endl;
+        // cout<<"Current position: "<<endl<<abs(interaction_pose.position.x)<<endl;
     }
 
     // TODO update the end conditions

@@ -15,9 +15,9 @@ bool jnt_cmd = true, cart_cmd = false;
 geometry_msgs::Pose g_des_pose;
 geometry_msgs::Twist g_des_twist;
 
-// vector<double> home_vec{0,-53,24,0,-3,0}; // Current EGM pose
+vector<double> home_vec{0,-40,8,0,30,0}; // Initial EGM pose from pendant, not perfect but close (no large jolt)
 // vector<double> home_vec{0,-37,5,0,-60,0}; // New tool exchange to quick connect valve (starting here)
-vector<double> home_vec{0,-48,16,0,30,0}; // Tool stowage with quick connect
+// vector<double> home_vec{0,-48,16,0,30,0}; // Tool stowage with quick connect
 // vector<double> home_vec{0,-48,24,0,22,0}; // Pencil and knife starting position
 // vector<double> home_vec{0,-40,8,0,30,0}; // Pencil and knife starting position OLD 
 // vector<double> home_vec{0,-35,8,0,25,0}; // Validation move until touch

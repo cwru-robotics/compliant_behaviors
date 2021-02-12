@@ -15,6 +15,7 @@ find_package(catkin REQUIRED COMPONENTS
   irb120_fk_ik
  actionlib_msgs
   abb_libegm
+  message_generation
   
 )
 
@@ -58,11 +59,12 @@ add_definitions(${EIGEN_DEFINITIONS})
 ##   * add every package in MSG_DEP_SET to generate_messages(DEPENDENCIES ...)
 
 ## Generate messages in the 'msg' folder
-# add_message_files(
-#   FILES
-#   Message1.msg
-#   Message2.msg
-# )
+add_message_files(
+  FILES
+  # Message1.msg
+  # Message2.msg
+  matrix_msg.msg
+)
 
 ## Generate services in the 'srv' folder
 add_service_files(
@@ -70,6 +72,7 @@ add_service_files(
    freeze_service.srv
    set_task_frame.srv
    set_plane_point.srv
+   set_frame.srv
 #   Service2.srv
  )
 
