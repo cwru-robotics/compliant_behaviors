@@ -1,0 +1,8 @@
+<launch>
+
+  <!-- Load the URDF into the ROS Parameter Server -->
+  <param name="robot_description"
+	 command="$(find xacro)/xacro.py '$(find irb120_description)/urdf/irb120_w_ft_sensor.xacro'" />
+
+  <!-- Add static TF from the FT sensor to the Tool Tip -->
+  </launch>

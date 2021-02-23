@@ -3,12 +3,23 @@
 //subscribes to a 'virtual attractor' pose
 //Performs accommodation control in a set frame, all with the inteeraction port of the FT sensor
 
+// TODO 
+/*
+* Define a TF publisher for /task_frame and /stowage_frame for rviz and others to know the TF between them and map (aka base) (static or dynamic? would this then by a dynamic TF?)
+* Define a published interaction frame, with a set frame ID for a transform (confirm with rviz)
+* Update the Interaction port (with TF updated in the loop as well) based on the set_frame, all in the current_frame (including the attractor, when in a PHold how do we define if we change frames)
+* Define a wrench in the current frame
+* Update compliance to be in the task/stowage/set frame (can use interaction point and virt attr as both in same frame_id relative)
+*/
+
 // ROS: include libraries
 #include <irb120_accomodation_control/irb120_accomodation_control.h>
 #include <irb120_accomodation_control/freeze_service.h>
 #include <irb120_accomodation_control/set_task_frame.h>
 #include <irb120_accomodation_control/set_frame.h>
-#include <irb120_accomodation_control/matrix_msg.h> // not sure if this is correct
+#include <irb120_accomodation_control/matrix_msg.h> 
+#include <tf2_ros/transform_broadcaster.h> // was tf2_ros/
+#include <geometry_msgs/TransformStamped.h>
 #include <cmath>
 #include <Eigen/QR>
 #include <Eigen/Dense>
@@ -47,11 +58,13 @@ bool virtual_attractor_established = false;
 bool jnt_state_update = false;
 
 // initialize our K matrix, and our current frame
-string current_frame = "tool";
+string current_frame = "task";
 std_msgs::String current_frame_msg;
 // May want to define a 6x6, and get submatrices
 Eigen::Vector3d k_trans, k_rot;
+Eigen::VectorXd b_des_vec = Eigen::VectorXd::Zero(6);
 Eigen::MatrixXd k_combined = Eigen::MatrixXd::Zero(6,6);
+Eigen::MatrixXd b_des_inv = Eigen::MatrixXd::Zero(6,6);
 
 // Declare variables of tool frame vectors for skills to use. 
 Eigen::Affine3d tool_with_respect_to_robot_;
@@ -97,6 +110,15 @@ geometry_msgs::Vector3 x_vec_ft_message_;
 geometry_msgs::Vector3 y_vec_ft_message_;
 geometry_msgs::Vector3 z_vec_ft_message_;
 geometry_msgs::PoseStamped ft_frame_pose_stamped;
+
+// Define an interaction Port to be published to other skills for relative motion of the attractor
+geometry_msgs::PoseStamped interaction_port_frame_pose_stamped;
+Eigen::Affine3d interaction_port_frame_with_respect_to_robot_;
+Eigen::MatrixXd interaction_port_frame_rotation_matrix_;
+
+// Define the transform for the current frame, it is either the stowage frame or the task frame 
+//TODO (how to set the attractor or the interaction port and of the attractor start pose)
+geometry_msgs::TransformStamped current_frame_transform_stamped; 
 Eigen::Affine3d sensor_with_respect_to_robot;
 
 
@@ -254,8 +276,8 @@ bool freezeServiceCallback(irb120_accomodation_control::freeze_serviceRequest &r
 // Click a button and set the task frame to be the current tool frame
 bool setTaskFrameCallback(irb120_accomodation_control::set_task_frameRequest &request, irb120_accomodation_control::set_task_frameResponse &response) {
 	// Find tool's current x, y, and vector for use in skills 
-	// task_frame_with_respect_to_robot_ = tool_with_respect_to_robot_; // Change to be sensor wrt robot
 	task_frame_with_respect_to_robot_ = sensor_with_respect_to_robot;
+	// = tool_with_respect_to_robot_; // If tool tip is the interaction port
 
 	// Just get the data directly from the tool frame, the service does not send or receive data, just used as a trigger mechanism
 	task_frame_rotation_matrix_ = task_frame_with_respect_to_robot_.linear();
@@ -273,6 +295,17 @@ bool setTaskFrameCallback(irb120_accomodation_control::set_task_frameRequest &re
 	task_frame_pose_stamped.pose.orientation.z = task_frame_orientation_quaternion.z();
 	task_frame_pose_stamped.pose.orientation.w = task_frame_orientation_quaternion.w();
 
+	// Update the current frame transform
+	current_frame_transform_stamped.transform.translation.x = task_frame_pose_stamped.pose.position.x;
+	current_frame_transform_stamped.transform.translation.y = task_frame_pose_stamped.pose.position.y;
+	current_frame_transform_stamped.transform.translation.z = task_frame_pose_stamped.pose.position.z;
+	current_frame_transform_stamped.transform.rotation.x = task_frame_pose_stamped.pose.orientation.x;
+	current_frame_transform_stamped.transform.rotation.y = task_frame_pose_stamped.pose.orientation.y;
+	current_frame_transform_stamped.transform.rotation.z = task_frame_pose_stamped.pose.orientation.z;
+	current_frame_transform_stamped.transform.rotation.w = task_frame_pose_stamped.pose.orientation.w;
+
+	
+
 	response.status = "task frame set"; 
 	return true; 
 }
@@ -288,6 +321,8 @@ bool setFrameServiceCallback(irb120_accomodation_control::set_frameRequest &requ
 		k_rot << 40,40,40;
 		k_combined.topLeftCorner(3,3) = k_trans.asDiagonal();
 		k_combined.bottomRightCorner(3,3) = k_rot.asDiagonal();
+		b_des_vec << 4000,4000,4000,200,200,200;
+		b_des_inv = b_des_vec.asDiagonal().inverse();
 	}
 	else if (!strcmp(task_name.c_str(), "Bottle_Cap")){
 		current_frame = "Task";
@@ -295,6 +330,8 @@ bool setFrameServiceCallback(irb120_accomodation_control::set_frameRequest &requ
 		k_rot << 40,40,40;
 		k_combined.topLeftCorner(3,3) = k_trans.asDiagonal();
 		k_combined.bottomRightCorner(3,3) = k_rot.asDiagonal();
+		b_des_vec << 4000,4000,4000,200,200,200;
+		b_des_inv = b_des_vec.asDiagonal().inverse();
 	}
 	else if (!strcmp(task_name.c_str(), "Tool")){
 		current_frame = "Tool";
@@ -302,6 +339,8 @@ bool setFrameServiceCallback(irb120_accomodation_control::set_frameRequest &requ
 		k_rot << 40,40,40;
 		k_combined.topLeftCorner(3,3) = k_trans.asDiagonal();
 		k_combined.bottomRightCorner(3,3) = k_rot.asDiagonal();
+		b_des_vec << 4000,4000,4000,200,200,200;
+		b_des_inv = b_des_vec.asDiagonal().inverse();
 	}
 	else if (!strcmp(task_name.c_str(), "Cutting")){
 		current_frame = "Task";
@@ -309,6 +348,8 @@ bool setFrameServiceCallback(irb120_accomodation_control::set_frameRequest &requ
 		k_rot << 40,40,40;
 		k_combined.topLeftCorner(3,3) = k_trans.asDiagonal();
 		k_combined.bottomRightCorner(3,3) = k_rot.asDiagonal();
+		b_des_vec << 4000,4000,4000,200,200,200;
+		b_des_inv = b_des_vec.asDiagonal().inverse();
 	}
 	else if (!strcmp(task_name.c_str(), "Task")){
 		current_frame = "Task";
@@ -316,6 +357,8 @@ bool setFrameServiceCallback(irb120_accomodation_control::set_frameRequest &requ
 		k_rot << 40,40,40;
 		k_combined.topLeftCorner(3,3) = k_trans.asDiagonal();
 		k_combined.bottomRightCorner(3,3) = k_rot.asDiagonal();
+		b_des_vec << 4000,4000,4000,200,200,200;
+		b_des_inv = b_des_vec.asDiagonal().inverse();
 	}
 	else if (!strcmp(task_name.c_str(), "Stowage")){
 		current_frame = "Stowage";
@@ -323,6 +366,8 @@ bool setFrameServiceCallback(irb120_accomodation_control::set_frameRequest &requ
 		k_rot << 40,40,40;
 		k_combined.topLeftCorner(3,3) = k_trans.asDiagonal();
 		k_combined.bottomRightCorner(3,3) = k_rot.asDiagonal();
+		b_des_vec << 4000,4000,4000,200,200,200;
+		b_des_inv = b_des_vec.asDiagonal().inverse();
 	}
 	else if (!strcmp(task_name.c_str(), "Quick_Disconnect")){
 		current_frame = "Task";
@@ -330,15 +375,38 @@ bool setFrameServiceCallback(irb120_accomodation_control::set_frameRequest &requ
 		k_rot << 40,40,40;
 		k_combined.topLeftCorner(3,3) = k_trans.asDiagonal();
 		k_combined.bottomRightCorner(3,3) = k_rot.asDiagonal();
+		b_des_vec << 4000,4000,4000,200,200,200;
+		b_des_inv = b_des_vec.asDiagonal().inverse();
 
-		// respose.
 	}
 	else {
 		cout<< "Failed"<<endl<<"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"<<endl;
 		response.status = "Failed to find a known preset.";
 		success = false;
 	}
-
+	// Based on current_frame, set the header of the interaction port to be in the correct frame, and change the TF flag
+	if(!strcmp(current_frame.c_str(), "Task")){
+		// interaction_port_frame_pose_stamped.header.frame_id = "/current_frame"; //! Make this into a TF tree thing
+		// Update the current frame transform
+		current_frame_transform_stamped.transform.translation.x = task_frame_pose_stamped.pose.position.x;
+		current_frame_transform_stamped.transform.translation.y = task_frame_pose_stamped.pose.position.y;
+		current_frame_transform_stamped.transform.translation.z = task_frame_pose_stamped.pose.position.z;
+		current_frame_transform_stamped.transform.rotation.x = task_frame_pose_stamped.pose.orientation.x;
+		current_frame_transform_stamped.transform.rotation.y = task_frame_pose_stamped.pose.orientation.y;
+		current_frame_transform_stamped.transform.rotation.z = task_frame_pose_stamped.pose.orientation.z;
+		current_frame_transform_stamped.transform.rotation.w = task_frame_pose_stamped.pose.orientation.w;
+	}
+	else{
+		// interaction_port_frame_pose_stamped.header.frame_id = "/current_frame";
+		// Update the current frame transform
+		current_frame_transform_stamped.transform.translation.x = stowage_frame_pose_stamped.pose.position.x;
+		current_frame_transform_stamped.transform.translation.y = stowage_frame_pose_stamped.pose.position.y;
+		current_frame_transform_stamped.transform.translation.z = stowage_frame_pose_stamped.pose.position.z;
+		current_frame_transform_stamped.transform.rotation.x = stowage_frame_pose_stamped.pose.orientation.x;
+		current_frame_transform_stamped.transform.rotation.y = stowage_frame_pose_stamped.pose.orientation.y;
+		current_frame_transform_stamped.transform.rotation.z = stowage_frame_pose_stamped.pose.orientation.z;
+		current_frame_transform_stamped.transform.rotation.w = stowage_frame_pose_stamped.pose.orientation.w;
+	}
 	// send Updated information back
 	response.updated_frame = current_frame;
 	// update the value of the frame message
@@ -377,8 +445,9 @@ int main(int argc, char **argv) {
 	ros::Publisher cart_log_pub = nh.advertise<geometry_msgs::PoseStamped>("cartesian_logger",1); // ROS: Publish the cartesian coordinates of the end effector in the robot coordinate frame
 	ros::Publisher robot_frame_pub = nh.advertise<geometry_msgs::PoseStamped>("robot_frame", 1);  // ROS: Publish a zero pose stamped to visualize the robot frame
 	ros::Publisher task_frame_pub = nh.advertise<geometry_msgs::PoseStamped>("task_frame", 1);	  // ROS: Publish the task frame
-	ros::Publisher ft_frame_pub = nh.advertise<geometry_msgs::PoseStamped>("ft_frame", 1);	  // ROS: Publish the ft frame
-	ros::Publisher stowage_frame_pub = nh.advertise<geometry_msgs::PoseStamped>("stowage_frame", 1); // ROS: Publish the task frame
+	ros::Publisher ft_frame_pub = nh.advertise<geometry_msgs::PoseStamped>("ft_frame", 1);	  // ROS: Publish the ft frame 
+	ros::Publisher stowage_frame_pub = nh.advertise<geometry_msgs::PoseStamped>("stowage_frame", 1); // ROS: Publish the stowage frame
+	ros::Publisher interaction_port_frame_pub = nh.advertise<geometry_msgs::PoseStamped>("interaction_port_frame", 1); // ROS: Publish the interaction port frame
 	ros::Publisher ft_pub = nh.advertise<geometry_msgs::Wrench>("transformed_ft_wrench",1); // ROS: Publish the force-torque wrench in the robot coordinate frame
 	ros::Publisher virtual_attractor_after_tf = nh.advertise<geometry_msgs::PoseStamped>("tfd_virt_attr",1); // ROS: Publish the virtual attractor pose in the robot coordinate frame
 	ros::Publisher bumpless_virtual_attractor_after_tf = nh.advertise<geometry_msgs::PoseStamped>("bumpless_tfd_virt_attr",1); // ROS: Publish the bumpless virtual attractor pose calculated from the force-torque wrench
@@ -407,14 +476,19 @@ int main(int argc, char **argv) {
 	// ROS: Service to update the current frame of compliance
 	ros::ServiceServer frame_service = nh.advertiseService("set_frame_service",setFrameServiceCallback);
 
+	// ROS: Define our current frame transform broadcaster (used for compliance and movement in subframes, transform back and forth between poses)
+	// tf2_ros::TransformBroadcaster br;
+
 	// Set the freeze mode status to off. This does not toggle freeze mode. It's only for display purposes.
 	freeze_mode_status.data = 1; // or here make it frozen, and set the mode to be 1 by default
 	
 	// MATH: Instantiate an object of the custom forward kinematics solver class for our ABB IRB 120 robot
+	
 	Irb120_fwd_solver irb120_fwd_solver;
+	cout << "After irb120 fkik init"<<endl; 
 
 	// Declare matricies and vectors
-	Eigen::MatrixXd robot_inertia_matrix(6,6);
+	Eigen::MatrixXd robot_inertia_matrix(6,6); // Unused
 	Eigen::VectorXd current_end_effector_pose(6);
 	Eigen::VectorXd wrench_with_respect_to_robot(6);
 	Eigen::VectorXd virtual_force(6);
@@ -422,6 +496,8 @@ int main(int argc, char **argv) {
 	Eigen::VectorXd desired_cartesian_acceleration(6);
 	Eigen::VectorXd desired_twist = Eigen::VectorXd::Zero(6);
 	Eigen::VectorXd desired_twist_with_gain = Eigen::VectorXd::Zero(6);
+
+	cout << "Defined vectors"<<endl; 
 
 	// Define constants
 	double dt_ = 0.01;
@@ -433,13 +509,19 @@ int main(int argc, char **argv) {
 	double K_virtual_translational = 1500; // was 1000
 	double K_virtual_angular = 40; // was 40
 
+	cout << "After definitions of old k and b mats "<<endl; 
 	//TODO Define the k_virt 
 	k_trans << 1500,1500,1500;
 	k_rot << 40,40,40;
 	k_combined.topLeftCorner(3,3) = k_trans.asDiagonal();
 	k_combined.bottomRightCorner(3,3) = k_rot.asDiagonal();
+	cout << "After definitions of k mat, before b mat"<<endl; 
+	b_des_vec << 4000,4000,4000,200,200,200;
+	b_des_inv = b_des_vec.asDiagonal().inverse();
+	cout << "After definitions of b mat"<<endl; 
 	current_frame = "Task";
 	current_frame_msg.data = current_frame;
+	cout<<"After defining new k and b mats"<<endl;
 
 	// Declare joint state, pose stamped, pose, and wrench variables
 	sensor_msgs::JointState desired_joint_state;
@@ -503,9 +585,8 @@ int main(int argc, char **argv) {
 	sensor_with_respect_to_robot = flange_with_respect_to_robot * sensor_with_respect_to_flange;
 	tool_with_respect_to_robot_ = sensor_with_respect_to_robot * tool_with_repsect_to_sensor;
 
-	// Define initial task frame as the tool frame wrt base, can be updated via service call
-	// task_frame_with_respect_to_robot_ = tool_with_respect_to_robot_;
-	task_frame_with_respect_to_robot_ = sensor_with_respect_to_robot;
+	// Define initial task frame as the ft frame wrt base, can be updated via service call
+	task_frame_with_respect_to_robot_ = sensor_with_respect_to_robot; //! change to tool_with_respect_to_robot_ if IP is tool tip
 
 	//TODO update the values to be the tool stowage frame from a working task frame
 	// Define default/starting transform for the tool stowage frame, set from values obtained with a working task frame
@@ -611,6 +692,28 @@ int main(int argc, char **argv) {
 	ft_frame_pose_stamped.pose.orientation.w = ft_frame_orientation_quaternion.w();
 	ft_frame_pose_stamped.header.frame_id = "map";
 
+	// Define our initial transform for the current frame we are complying and moving in
+	current_frame_transform_stamped.transform.translation.x = task_frame_pose_stamped.pose.position.x;
+	current_frame_transform_stamped.transform.translation.y = task_frame_pose_stamped.pose.position.y;
+	current_frame_transform_stamped.transform.translation.z = task_frame_pose_stamped.pose.position.z;
+	current_frame_transform_stamped.transform.rotation.x = task_frame_pose_stamped.pose.orientation.x;
+	current_frame_transform_stamped.transform.rotation.y = task_frame_pose_stamped.pose.orientation.y;
+	current_frame_transform_stamped.transform.rotation.z = task_frame_pose_stamped.pose.orientation.z;
+	current_frame_transform_stamped.transform.rotation.w = task_frame_pose_stamped.pose.orientation.w;
+	current_frame_transform_stamped.header.frame_id = "map";
+	current_frame_transform_stamped.child_frame_id = "current_frame";
+
+	// Define interaction port frame as a pose stamped
+	interaction_port_frame_pose_stamped.pose.position.x = 0; // sensor_with_respect_to_robot.translation()(0);
+	interaction_port_frame_pose_stamped.pose.position.y = 0; // sensor_with_respect_to_robot.translation()(1);
+	interaction_port_frame_pose_stamped.pose.position.z = 0; // sensor_with_respect_to_robot.translation()(2);
+	// Eigen::Quaterniond ft_frame_orientation_quaternion(sensor_with_respect_to_robot.linear());
+	interaction_port_frame_pose_stamped.pose.orientation.x = 0; // ft_frame_orientation_quaternion.x();
+	interaction_port_frame_pose_stamped.pose.orientation.y = 0; // ft_frame_orientation_quaternion.y();
+	interaction_port_frame_pose_stamped.pose.orientation.z = 0; // ft_frame_orientation_quaternion.z();
+	interaction_port_frame_pose_stamped.pose.orientation.w = 0; // ft_frame_orientation_quaternion.w();
+	interaction_port_frame_pose_stamped.header.frame_id = "map"; //! Change this based on what the frame currently is defined as
+
 	// Declare the bumpless virtual attractor's pose
 	Eigen::VectorXd bumpless_virtual_attractor_position(3);
 	Eigen::Vector3d bumpless_virtual_attractor_angles;
@@ -665,10 +768,33 @@ int main(int argc, char **argv) {
 		// Update wrench with respect to robot
 		wrench_with_respect_to_robot.head(3) = sensor_with_respect_to_robot.linear() * (wrench_body_coords_.head(3));
 		wrench_with_respect_to_robot.tail(3) = sensor_with_respect_to_robot.linear() * (wrench_body_coords_.tail(3));
-		
+
+		//! Change this to be in the set frame, code is commented out
 		// Compute virtual attractor forces
 		// If the controller has just started, use the bumpless virtual attractor
 		if (!freeze_mode && first_loop_after_freeze) { //TODO Change to be based off of FT sensor
+			
+			//TODO Code for attractor and tool pose in current_frame the bumpless attr pose calculated here
+			// // Define the virtual position based on the wrench on the FT sensor in the current frame, with the interaction port defined in the current frame (convert from )
+			// bumpless_virtual_attractor_position = -(k_trans.asDiagonal().inverse() * wrench_in_current_frame.head(3)); 
+			// // Then add this offset onto the current pose of the interaction port
+			// bumpless_virtual_attractor_position(0) += interaction_port_frame_pose_stamped.pose.position.x;
+			// bumpless_virtual_attractor_position(1) += interaction_port_frame_pose_stamped.pose.position.y;
+			// bumpless_virtual_attractor_position(2) += interaction_port_frame_pose_stamped.pose.position.z;
+			
+			// Calculate the orientation of the attractor based on the felt wrench, and then add on the orientation of the ft sensor
+			// We get the offset of the attractor required, and then we can conver it to a rotation matrix, and then add that rotation on to the current orientation of the IP in the current frame
+			// bumpless_virtual_attractor_angles = -(k_rot.asDiagonal().inverse() * wrench_in_current_frame.tail(3));
+			
+			// Convert bumpless attr to rot matrix (define a func here, vec of angles to AA, then AA to rot)
+			// Take this rot mat, and then post multiply it to the current ft rotation matrix in the appropriate frame (IP, maybe define a new Affine for it?)
+
+			// Another implementation is to combine the small angle representations of the IP and this calculated delta and then convert from vector of angles (AA) to Rotation matrix
+			// calculate as angle axis to rot, no euler
+			// Get the angle axis representation of the ft, multiply the axis by the angle
+
+
+
 			// Find bumpless virtual attractor position: the negative force devided by the translational spring constant, plus the end effector position
 			bumpless_virtual_attractor_position = -wrench_with_respect_to_robot.head(3) / K_virtual_translational + sensor_with_respect_to_robot.translation();
 			// Update virtual attractor position to bumpless virtual attractor position
@@ -682,6 +808,7 @@ int main(int argc, char **argv) {
 			// Update the virtual attractor rotation matrix
 			virtual_attractor_rotation_matrix = rotation_matrix_from_euler_angles(bumpless_virtual_attractor_angles);
 
+			//! Define our virtual wrench, we just swap out the K_virts with the matrices as diagonals (or the box), and use the variables that are defined in the current frame (virt attr and IP)
 			// Calculate the virtual forces
 			virtual_force.head(3) = K_virtual_translational * (virtual_attractor_pos - sensor_with_respect_to_robot.translation());
 			virtual_force.tail(3) = K_virtual_angular * (delta_phi_from_rots(sensor_with_respect_to_robot.linear(), virtual_attractor_rotation_matrix));
@@ -697,6 +824,7 @@ int main(int argc, char **argv) {
 		else {
 			// If we have established a virtual attractor
 			if(virtual_attractor_established) {
+				//! Define our virtual wrench, we just swap out the K_virts with the matrices as diagonals (or the box), and use the variables that are defined in the current frame (virt attr and IP)
 				// Calculate the virtual forces
 				virtual_force.head(3) = K_virtual_translational * (virtual_attractor_pos - sensor_with_respect_to_robot.translation());
 				virtual_force.tail(3) = K_virtual_angular * (delta_phi_from_rots(sensor_with_respect_to_robot.linear(), virtual_attractor_rotation_matrix));
@@ -714,7 +842,17 @@ int main(int argc, char **argv) {
 
 		cout<<"virtual force: "<<endl<<virtual_force<<endl;
 
+		
 		// CONTROL LAW BEGIN
+		//! Remove cartesian acceleration, just do:
+		// Combine the virtual and measured wrench in current frame
+		// Eigen::VectorXd combined_wrench = virtual_force + wrench_in_current_frame;
+		// // Calculate our desired twist in current frame through accommodation control
+		// Eigen::VectorXd desired_twist_in_current_frame = b_des_inv * combined_wrench;
+		// // Transform the twist into the base frame for the jacobian
+		// desired_twist = tf * desired_twist_in_current_frame;
+
+
 		// Calculate the desired twists with the two damping gains
 		desired_twist_with_gain.head(3) = -B_virtual_translational * desired_twist.head(3);
 		desired_twist_with_gain.tail(3) = -B_virtual_rotational * desired_twist.tail(3);
@@ -800,18 +938,14 @@ int main(int argc, char **argv) {
 		stowage_frame_pose_stamped.header.stamp = ros::Time::now();
 		stowage_frame_pub.publish(stowage_frame_pose_stamped);
 
-		//publish coordinates of bumpless virtual attractor
-		/*
-		bumpless_virtual_attractor_log.pose.position.x = bumpless_virtual_attractor_position(0);
-		bumpless_virtual_attractor_log.pose.position.y = bumpless_virtual_attractor_position(1);
-		bumpless_virtual_attractor_log.pose.position.z = bumpless_virtual_attractor_position(2);
-		bumpless_virtual_attractor_log.pose.orientation.w = 0; //TODO CHANGE CHANGE CHANGE CHANGE. THESE ARE PLACEHOLDERS.
-		bumpless_virtual_attractor_log.pose.orientation.x = 0;
-		bumpless_virtual_attractor_log.pose.orientation.y = 0;
-		bumpless_virtual_attractor_log.pose.orientation.z = 0;
-		bumpless_virtual_attractor_log.header.stamp = ros::Time::now();
-		bumpless_virtual_attractor_after_tf.publish(bumpless_virtual_attractor_log);
-		*/
+		// Publish the tool stowage bay frame for visualization in rviz
+		interaction_port_frame_pose_stamped.header.stamp = ros::Time::now();
+		// interaction_port_frame_pub.publish(interaction_port_frame_pose_stamped);
+
+		//! TEST AND MAKE SURE THIS WORKS FOR INTERACTION PORT
+		// Broadcast the current frame transform
+		current_frame_transform_stamped.header.stamp = ros::Time::now();
+		// br.sendTransform(current_frame_transform_stamped);
 
 		// Publish force-torque values transformed into robot frame
 		transformed_wrench.force.x = wrench_with_respect_to_robot(0);

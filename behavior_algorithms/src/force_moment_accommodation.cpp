@@ -16,12 +16,17 @@ using namespace std;
 
 // Declare variables
 geometry_msgs::Pose current_pose;
+geometry_msgs::Pose current_ft_pose;
 geometry_msgs::PoseStamped virtual_attractor;
 geometry_msgs::Wrench ft_in_robot_frame;
 
 // ROS: callback functions for how we receive data
 void cartesian_state_callback(const geometry_msgs::PoseStamped& cartesian_pose) {
     current_pose = cartesian_pose.pose;
+}
+// ROS: callback functions for how we receive data
+void ft_frame_callback(const geometry_msgs::PoseStamped& ft_frame) {
+    current_ft_pose = ft_frame.pose;
 }
 void ft_callback(const geometry_msgs::Wrench& ft_values) {
     // These are not values from the sensor. They are f/t values transformed into robot base frame.
@@ -33,7 +38,8 @@ int main(int argc, char** argv) {
     // ROS: for communication between programs
     ros::init(argc,argv,"force_moment_accommodation");
     ros::NodeHandle nh;
-    ros::Subscriber cartesian_state_subscriber = nh.subscribe("cartesian_logger",1, cartesian_state_callback);
+    ros::Subscriber cartesian_state_subscriber = nh.subscribe("cartesian_logger",1, cartesian_state_callback); // Needs to be changed to be interaction port, for now subscribe to both FT and EE
+    ros::Subscriber ft_frame_sub = nh.subscribe("ft_frame",1,ft_frame_callback); 
     ros::Subscriber ft_subscriber = nh.subscribe("transformed_ft_wrench",1,ft_callback);
     ros::Publisher virtual_attractor_publisher = nh.advertise<geometry_msgs::PoseStamped>("Virt_attr_pose",1);
 
@@ -101,8 +107,10 @@ int main(int argc, char** argv) {
         // ROS: For communication
         ros::spinOnce();
 
+        //! change to be interaction port
         // Put the virtual attractor at the end effector
-        virtual_attractor.pose = current_pose;
+        // virtual_attractor.pose = current_pose; // If we are using the tooltip
+        virtual_attractor.pose = current_ft_pose; // if we are using the Ft 
 
         // Add to time counter
         loops_so_far = loops_so_far + 1;
