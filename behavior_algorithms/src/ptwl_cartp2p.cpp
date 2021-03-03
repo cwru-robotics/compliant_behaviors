@@ -19,6 +19,7 @@
 #include <behavior_algorithms/status_service.h>
 #include <irb120_accomodation_control/freeze_service.h>
 #include <irb120_accomodation_control/set_frame.h>
+#include <irb120_accomodation_control/set_current_frame.h>
 #include <irb120_accomodation_control/matrix_msg.h>
 using namespace std;
 
@@ -179,7 +180,7 @@ int main(int argc, char** argv) {
     // ROS: Services used in conjunction with buffer.cpp to have delayed program status sent to operator
     ros::ServiceClient client = nh.serviceClient<behavior_algorithms::status_service>("status_service");
     ros::ServiceClient client_start = nh.serviceClient<behavior_algorithms::status_service>("start_service");
-    ros::ServiceClient client_set_frame = nh.serviceClient<behavior_algorithms::status_service>("start_service");
+    ros::ServiceClient client_set_frame = nh.serviceClient<irb120_accomodation_control::set_current_frame>("set_frame_service");
     
     // Define services and subscribers for the freeze mode status
 
@@ -197,7 +198,7 @@ int main(int argc, char** argv) {
     //ROS: Service for toggling freeze mode
     irb120_accomodation_control::freeze_service freeze_srv;
 
-    irb120_accomodation_control::set_frame set_frame_srv;
+    irb120_accomodation_control::set_current_frame set_frame_srv;
     
     ROS_INFO("after setup");
     /*
@@ -389,16 +390,18 @@ int main(int argc, char** argv) {
     ROS_INFO("after storing params");
 
     //TODO call service set_frame_service
+    ROS_INFO(param_set.c_str());
     set_frame_srv.request.task_name = param_set.c_str();
 
     // Define our new kmatrix to store value from the set frame service, used for the bumpless start
     irb120_accomodation_control::matrix_msg k_mat;
+    ROS_INFO("Before calling set frame service");
     if(client_set_frame.call(set_frame_srv)){
         k_mat = set_frame_srv.response.K_mat;
         cout<<set_frame_srv.response.status<<endl<<"Current frame: "<<set_frame_srv.response.updated_frame<<endl;
         ROS_INFO_STREAM(set_frame_srv.response.updated_frame);
     }
-
+    ROS_INFO("After calling set frame service");
     // If we are in the interaction port for the FT, then our starting pose and calculations are all done wrt FT
     if(interaction_port_is_ft){ //! Decide where we want this selected, maybe it is something we get from the acc controller? published somehow
         interaction_pose = ft_frame;
@@ -832,13 +835,12 @@ int main(int argc, char** argv) {
     //If we've timed out
     //TODO add a goal check
     if (loops_so_far > n_steps){
-        cout<<"Timed out"<<endl;
-        srv.request.status = "Timed out";
+        srv.request.status = "Timed out ";
         // ROS: for communication between programs
         ros::spinOnce();
 
         // we want to sleep here in compliance for some time
-        cout<<"Interpolation completed, will settle"<<endl;
+        cout<<"Interpolation completed"<<endl;
 
     }
 

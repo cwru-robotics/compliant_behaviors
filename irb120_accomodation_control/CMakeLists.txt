@@ -73,6 +73,7 @@ add_service_files(
    set_task_frame.srv
    set_plane_point.srv
    set_frame.srv
+   set_current_frame.srv
 #   Service2.srv
  )
 

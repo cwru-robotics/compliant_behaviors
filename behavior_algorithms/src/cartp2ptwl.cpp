@@ -19,6 +19,7 @@
 #include <behavior_algorithms/status_service.h>
 #include <irb120_accomodation_control/freeze_service.h>
 #include <irb120_accomodation_control/set_frame.h>
+#include <irb120_accomodation_control/set_current_frame.h>
 #include <irb120_accomodation_control/matrix_msg.h>
 using namespace std;
 
@@ -136,6 +137,10 @@ void ft_frame_callback(const geometry_msgs::PoseStamped& ft_frame_from_sub) {
     ft_frame = ft_frame_from_sub.pose;
 }
 
+void interaction_frame_callback(const geometry_msgs::PoseStamped& interaction_frame_from_sub) {
+    interaction_pose = interaction_frame_from_sub.pose;
+}
+
 void freeze_status_callback(const std_msgs::Int8& freeze_status_msg) {
     freeze_updated = true;
     freeze_mode_status = freeze_status_msg;
@@ -174,12 +179,14 @@ int main(int argc, char** argv) {
     ros::Subscriber ft_vector_sub_y = nh.subscribe("ft_vector_y",1,ft_vector_y_callback);                  // subscribe to the value of the ft vector in the z, published from the accomodation controller
     ros::Subscriber ft_vector_sub_z = nh.subscribe("ft_vector_z",1,ft_vector_z_callback);                  // subscribe to the value of the ft vector in the z, published from the accomodation controller
     ros::Subscriber ft_frame_sub = nh.subscribe("ft_frame",1,ft_frame_callback);                         // subscribe to the ft frame published by the accomodation controller
+    ros::Subscriber interaction_frame_sub = nh.subscribe("interaction_port_frame",1,interaction_frame_callback);                         // subscribe to the ft frame published by the accomodation controller
+    
     ros::Publisher virtual_attractor_publisher = nh.advertise<geometry_msgs::PoseStamped>("Virt_attr_pose",1); // publish the pose of the virtual attractor for the accomodation controller 
 
     // ROS: Services used in conjunction with buffer.cpp to have delayed program status sent to operator
     ros::ServiceClient client = nh.serviceClient<behavior_algorithms::status_service>("status_service");
     ros::ServiceClient client_start = nh.serviceClient<behavior_algorithms::status_service>("start_service");
-    ros::ServiceClient client_set_frame = nh.serviceClient<behavior_algorithms::status_service>("start_service");
+    ros::ServiceClient client_set_frame = nh.serviceClient<irb120_accomodation_control::set_current_frame>("set_frame_service");
     
     // Define services and subscribers for the freeze mode status
 
@@ -197,7 +204,7 @@ int main(int argc, char** argv) {
     //ROS: Service for toggling freeze mode
     irb120_accomodation_control::freeze_service freeze_srv;
 
-    irb120_accomodation_control::set_frame set_frame_srv;
+    irb120_accomodation_control::set_current_frame set_frame_srv;
     
     ROS_INFO("after setup");
     /*
@@ -258,22 +265,22 @@ int main(int argc, char** argv) {
     cout<<freeze_srv.response<<endl;
 
     
-    // Check here after a spin, and unfreeze if it is frozen
-    while(freeze_mode_status.data == 1 && freeze_mode){
+    // Check here after a spin, and unfreeze if it is frozen //! uncomment after checking new cartp2ptwl with current_frame based math
+    // while(freeze_mode_status.data == 1 && freeze_mode){
         
-        if(freeze_updated && freeze_client.call(freeze_srv)){
-            // success
-            cout<<"Called freeze mode service succesfully"<<endl;
-        }
-        else{
-            // failed to call service
-            ROS_ERROR("Failed to call freeze service");
-        }
-        ros::spinOnce();
-        naptime.sleep();
-        freeze_updated = false;
+    //     if(freeze_updated && freeze_client.call(freeze_srv)){
+    //         // success
+    //         cout<<"Called freeze mode service succesfully"<<endl;
+    //     }
+    //     else{
+    //         // failed to call service
+    //         ROS_ERROR("Failed to call freeze service");
+    //     }
+    //     ros::spinOnce();
+    //     naptime.sleep();
+    //     freeze_updated = false;
 
-    }
+    // }
     
     // spin, while we don't have data
     while(!freeze_updated){
@@ -389,23 +396,25 @@ int main(int argc, char** argv) {
     ROS_INFO("after storing params");
 
     //TODO call service set_frame_service
+    ROS_INFO_STREAM(param_set.c_str());
     set_frame_srv.request.task_name = param_set.c_str();
-
+    // cout<<set_frame_srv<<endl;
     // Define our new kmatrix to store value from the set frame service, used for the bumpless start
     irb120_accomodation_control::matrix_msg k_mat;
+    ROS_INFO("Before calling set frame service");
     if(client_set_frame.call(set_frame_srv)){
         k_mat = set_frame_srv.response.K_mat;
         cout<<set_frame_srv.response.status<<endl<<"Current frame: "<<set_frame_srv.response.updated_frame<<endl;
         ROS_INFO_STREAM(set_frame_srv.response.updated_frame);
     }
-
+    ROS_INFO("After calling set frame service");
     // If we are in the interaction port for the FT, then our starting pose and calculations are all done wrt FT
-    if(interaction_port_is_ft){ //! Decide where we want this selected, maybe it is something we get from the acc controller? published somehow
-        interaction_pose = ft_frame;
-    }
-    else{
-        interaction_pose = current_pose;
-    }
+    // if(interaction_port_is_ft){ //! Decide where we want this selected, maybe it is something we get from the acc controller? published somehow
+    //     interaction_pose = ft_frame;
+    // }
+    // else{
+    //     interaction_pose = current_pose;
+    // }
 
     // ROS_INFO("Output from parameter for target_distance; %f", TARGET_DISTANCE); 
 
@@ -474,23 +483,28 @@ int main(int argc, char** argv) {
 
     // Update to accept input of goal pose here, and then add the deltas 
     geometry_msgs::Vector3 delta_trans_vec;
-    if(task){
-        delta_trans_vec.x = (x * task_vector_x.x) + (y * task_vector_y.x) + (z * task_vector_z.x);
-        delta_trans_vec.y = (x * task_vector_x.y) + (y * task_vector_y.y) + (z * task_vector_z.y);
-        delta_trans_vec.z = (x * task_vector_x.z) + (y * task_vector_y.z) + (z * task_vector_z.z);
-    }
-    else if(stowage){
-        delta_trans_vec.x = (x * stowage_vector_x.x) + (y * stowage_vector_y.x) + (z * stowage_vector_z.x);
-        delta_trans_vec.y = (x * stowage_vector_x.y) + (y * stowage_vector_y.y) + (z * stowage_vector_z.y);
-        delta_trans_vec.z = (x * stowage_vector_x.z) + (y * stowage_vector_y.z) + (z * stowage_vector_z.z);
-    }
-    else{
-        // The values from the parameters are stored here, scale the tool vecs, then add them together to get the delta vec
-        delta_trans_vec.x = (x * tool_vector_x.x) + (y * tool_vector_y.x) + (z * tool_vector_z.x);
-        delta_trans_vec.y = (x * tool_vector_x.y) + (y * tool_vector_y.y) + (z * tool_vector_z.y);
-        delta_trans_vec.z = (x * tool_vector_x.z) + (y * tool_vector_y.z) + (z * tool_vector_z.z);
-    }
-    // cout<<"Input Delta Vector"<<endl<<delta_trans_vec<<endl;
+    // if(task){
+    //     delta_trans_vec.x = (x * task_vector_x.x) + (y * task_vector_y.x) + (z * task_vector_z.x);
+    //     delta_trans_vec.y = (x * task_vector_x.y) + (y * task_vector_y.y) + (z * task_vector_z.y);
+    //     delta_trans_vec.z = (x * task_vector_x.z) + (y * task_vector_y.z) + (z * task_vector_z.z);
+    // }
+    // else if(stowage){
+    //     delta_trans_vec.x = (x * stowage_vector_x.x) + (y * stowage_vector_y.x) + (z * stowage_vector_z.x);
+    //     delta_trans_vec.y = (x * stowage_vector_x.y) + (y * stowage_vector_y.y) + (z * stowage_vector_z.y);
+    //     delta_trans_vec.z = (x * stowage_vector_x.z) + (y * stowage_vector_y.z) + (z * stowage_vector_z.z);
+    // }
+    // else{
+    //     // The values from the parameters are stored here, scale the tool vecs, then add them together to get the delta vec
+    //     delta_trans_vec.x = (x * tool_vector_x.x) + (y * tool_vector_y.x) + (z * tool_vector_z.x);
+    //     delta_trans_vec.y = (x * tool_vector_x.y) + (y * tool_vector_y.y) + (z * tool_vector_z.y);
+    //     delta_trans_vec.z = (x * tool_vector_x.z) + (y * tool_vector_y.z) + (z * tool_vector_z.z);
+    // }
+
+    // In the current frame, we translate x, y, z directly 
+    delta_trans_vec.x = x;
+    delta_trans_vec.y = y;
+    delta_trans_vec.z = z;
+    cout<<"Input Delta Vector"<<endl<<delta_trans_vec<<endl;
 
     //TODO Calculate the end pose here based on the input, take the relative change and add it in the tool frame,
     //TODO if we use interactive markers in rviz, use that to get ending pos
@@ -546,20 +560,22 @@ int main(int argc, char** argv) {
     R_interp = R_start;
 
     //! check if in task frame or in tool frame:
-    if(task){
-        // Calculate the new goal rotation matrix in th
-        goal_pose_wrt_task = TO_DESTINATION_ROTATION_MATRIX * tool_in_task;
-        R_end = task_frame_rot * goal_pose_wrt_task; 
-    }
-    else if(stowage){
-        goal_pose_wrt_stowage = TO_DESTINATION_ROTATION_MATRIX * tool_in_stowage;
-        R_end = stowage_frame_rot * goal_pose_wrt_stowage; 
-    }
-    else{
-        // Take the start rotation, apply the desired rotation to calculate the final rotation matrix in tool frame
-        R_end = start_pose_quat * TO_DESTINATION_ROTATION_MATRIX; // I feel this math may need to be flipped, but it seems to check based on OTEL (rotation in tool frame)
-    }
-    // R_end = TO_DESTINATION_ROTATION_MATRIX * start_pose_quat; // Double check here, this was swapped
+    // if(task){
+    //     // Calculate the new goal rotation matrix in th
+    //     goal_pose_wrt_task = TO_DESTINATION_ROTATION_MATRIX * tool_in_task;
+    //     R_end = task_frame_rot * goal_pose_wrt_task; 
+    // }
+    // else if(stowage){
+    //     goal_pose_wrt_stowage = TO_DESTINATION_ROTATION_MATRIX * tool_in_stowage;
+    //     R_end = stowage_frame_rot * goal_pose_wrt_stowage; 
+    // }
+    // else{
+    //     // Take the start rotation, apply the desired rotation to calculate the final rotation matrix in tool frame
+    //     R_end = R_start * TO_DESTINATION_ROTATION_MATRIX; // I feel this math may need to be flipped, but it seems to check based on OTEL (rotation in tool frame)
+    // }
+
+    // Calculate the ending rotation matrix based on the current orientation times the desired rotation
+    R_end = R_start * TO_DESTINATION_ROTATION_MATRIX;
 
     //? Below line is used if we have the end pose given to us, here we do not and thus must calculate it above
     // R_end = end_pose_quat.normalized().toRotationMatrix(); // end pose, convert to rotation 
@@ -620,15 +636,8 @@ int main(int argc, char** argv) {
     theta_interp = 0.0;
     R_change_interp = Eigen::AngleAxisd(theta_interp, k_rot_axis);
 
-    // Get a normalized version of the delta trans vec, for use with the goal check
-    geometry_msgs::Vector3 delta_trans_vec_norm;
-    delta_trans_vec_norm.x = delta_trans_vec.x / dist;
-    delta_trans_vec_norm.y = delta_trans_vec.y / dist;
-    delta_trans_vec_norm.z = delta_trans_vec.z / dist;
-
     //TODO Update goal reached exit condition to include orientation
     // Dot product, uf the value is above 0, we hit the target movement
-    // double dot_product = vector_to_goal.x * delta_trans_vec_norm.x + vector_to_goal.y * delta_trans_vec_norm.y + vector_to_goal.z * delta_trans_vec_norm.z;
     double goal_dist = sqrt(pow(vector_to_goal.x,2) + pow(vector_to_goal.y,2) + pow(vector_to_goal.z,2));
     // If it is past the plane perpendicular to the direction of movement at the goal position, then we have reached the position
     // If the rotation is within some amount, then we have reached the rotation, and if both are true, then we have reached the target 
@@ -640,7 +649,6 @@ int main(int argc, char** argv) {
     target_reached = pos_reached && rot_reached;
 
     // Debug output
-    cout<<"Tool Vector Z"<<endl<<tool_vector_z<<endl;
     cout<<"Difference Vector"<<endl<<vector_to_goal<<endl;
     cout<<"Distance to Goal"<<endl<<goal_dist<<endl<<endl;
     // cout<<"Current Orientation "<<endl<<current_pose_quat<<endl;
@@ -657,12 +665,14 @@ int main(int argc, char** argv) {
 
     // Loop variable to check effort limit condition
     bool effort_limit_crossed = false;
+    //! change to be ft in current frame? 
     effort_limit_crossed = ((abs(ft_in_sensor_frame.torque.x) > TORQUE_THRESHOLD) || (abs(ft_in_sensor_frame.torque.y) > TORQUE_THRESHOLD) || (abs(ft_in_sensor_frame.torque.z) > TORQUE_THRESHOLD) ||
                                  (abs(ft_in_sensor_frame.force.x) > FORCE_THRESHOLD) || (abs(ft_in_sensor_frame.force.y) > FORCE_THRESHOLD) || (abs(ft_in_sensor_frame.force.z) > FORCE_THRESHOLD));
 
 
     //TODO Bumpless start here, after making sure we have not crossed the effort limit already, confirm how we want to do this
     virtual_attractor.pose = interaction_pose; //! CHANGE TO BE FT
+    virtual_attractor.header.frame_id = "current_frame";
 
 
     // Used in the loop to determine the run time and time out additional length to allow it to settle in the main function
@@ -678,18 +688,18 @@ int main(int argc, char** argv) {
     3. The target orientation has been reached
     4. There was an external call to freeze the system, exiting this command
     */
-    while( (loops_so_far < total_number_of_loops) && !effort_limit_crossed && !target_reached && !freeze_mode) {
+    while( (loops_so_far < total_number_of_loops) && !effort_limit_crossed && !target_reached){ // && !freeze_mode) {
         // ROS: for communication between programs
         ros::spinOnce();
         cout<<"Loops so far: "<<loops_so_far<<endl<<"n_steps: "<<n_steps<<endl<<"total_number_of_loops: "<<total_number_of_loops<<endl;
 
         // If we are in the interaction port for the FT, then our starting pose and calculations are all done wrt FT
-        if(interaction_port_is_ft){ 
-            interaction_pose = ft_frame;
-        }
-        else{
-            interaction_pose = current_pose;
-        }
+        // if(interaction_port_is_ft){ 
+        //     interaction_pose = ft_frame;
+        // }
+        // else{
+        //     interaction_pose = current_pose;
+        // }
         // cout << "Press enter to continue";
         // cin >> temple;
 
@@ -710,7 +720,7 @@ int main(int argc, char** argv) {
             
             // New method, add to previous interpolated rotation
             R_change_interp = Eigen::AngleAxisd(dtheta, k_rot_axis);
-            R_interp = R_interp * R_change_interp; // where R_interp is the previous rotation matrix in base frame
+            R_interp = R_interp * R_change_interp; // where R_interp is the previous rotation matrix in base frame, maybe change dtheta to theta interp, r_interp to r_start
 
             // Update the rotation of the virtual attractor
             Eigen::Quaterniond new_virtual_attractor_quat(R_interp);
@@ -738,7 +748,6 @@ int main(int argc, char** argv) {
         // Check rotation
 
         // Dot product, if the value is above 0, we hit the target movement
-        // dot_product = vector_to_goal.x * delta_trans_vec_norm.x + vector_to_goal.y * delta_trans_vec_norm.y + vector_to_goal.z * delta_trans_vec_norm.z;
         goal_dist = sqrt(pow(vector_to_goal.x,2) + pow(vector_to_goal.y,2) + pow(vector_to_goal.z,2));
 
         //TODO Update to match earlier check
@@ -761,6 +770,7 @@ int main(int argc, char** argv) {
         cout<<"Distance to Goal"<<endl<<goal_dist<<endl<<endl;
 
         // ROS: for communication between programs
+        virtual_attractor.header.stamp = ros::Time::now();
         virtual_attractor_publisher.publish(virtual_attractor);
         naptime.sleep();
 
@@ -832,13 +842,12 @@ int main(int argc, char** argv) {
     //If we've timed out
     //TODO add a goal check
     if (loops_so_far > n_steps){
-        cout<<"Timed out"<<endl;
         srv.request.status = "Timed out";
         // ROS: for communication between programs
         ros::spinOnce();
 
         // we want to sleep here in compliance for some time
-        cout<<"Interpolation completed, will settle"<<endl;
+        cout<<"Interpolation completed"<<endl;
 
     }
 

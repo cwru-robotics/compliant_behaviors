@@ -171,6 +171,23 @@ add_executable(restore_wrench_eq src/restore_wrench_eq.cpp)
 ## Add cmake target dependencies of the executable
 ## same as for the library above
 # add_dependencies(${PROJECT_NAME}_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+add_dependencies(torsional_wiggle_push ${catkin_EXPORTED_TARGETS})
+add_dependencies(torsional_wiggle_pull ${catkin_EXPORTED_TARGETS})
+add_dependencies(translational_wiggle_push ${catkin_EXPORTED_TARGETS})
+add_dependencies(translational_wiggle_pull ${catkin_EXPORTED_TARGETS})
+add_dependencies(ptwl_cartp2p ${catkin_EXPORTED_TARGETS})
+add_dependencies(freeze_position_targeting_effort_limiting_z ${catkin_EXPORTED_TARGETS})
+add_dependencies(cartp2ptwl ${catkin_EXPORTED_TARGETS})
+add_dependencies(orientation_targeting_effort_limiting_x ${catkin_EXPORTED_TARGETS})
+add_dependencies(orientation_targeting_effort_limiting_y ${catkin_EXPORTED_TARGETS})
+add_dependencies(orientation_targeting_effort_limiting_z ${catkin_EXPORTED_TARGETS})
+add_dependencies(position_targeting_effort_limiting_x ${catkin_EXPORTED_TARGETS})
+add_dependencies(position_targeting_effort_limiting_y ${catkin_EXPORTED_TARGETS})
+add_dependencies(position_targeting_effort_limiting_z ${catkin_EXPORTED_TARGETS})
+add_dependencies(compliant_cutting ${catkin_EXPORTED_TARGETS})
+add_dependencies(restore_wrench_eq ${catkin_EXPORTED_TARGETS})
+add_dependencies(force_moment_accommodation ${catkin_EXPORTED_TARGETS})
+
 
 ## Specify libraries to link a library or executable target against
  target_link_libraries(peg_hole_linear_search
