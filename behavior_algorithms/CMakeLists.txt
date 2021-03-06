@@ -152,6 +152,7 @@ add_executable(orientation_targeting_effort_limiting_y src/orientation_targeting
 add_executable(orientation_targeting_effort_limiting_z src/orientation_targeting_effort_limiting_z.cpp)
 add_executable(compliant_cutting src/compliant_cutting.cpp)
 add_executable(force_moment_accommodation src/force_moment_accommodation.cpp)
+add_executable(force_moment_accommodation_interaction_port src/force_moment_accommodation_interaction_port.cpp)
 add_executable(translational_wiggle_push src/translational_wiggle_push.cpp)
 add_executable(torsional_wiggle_push src/torsional_wiggle_push.cpp)
 add_executable(translational_wiggle_pull src/translational_wiggle_pull.cpp)
@@ -187,6 +188,7 @@ add_dependencies(position_targeting_effort_limiting_z ${catkin_EXPORTED_TARGETS}
 add_dependencies(compliant_cutting ${catkin_EXPORTED_TARGETS})
 add_dependencies(restore_wrench_eq ${catkin_EXPORTED_TARGETS})
 add_dependencies(force_moment_accommodation ${catkin_EXPORTED_TARGETS})
+add_dependencies(force_moment_accommodation_interaction_port ${catkin_EXPORTED_TARGETS})
 
 
 ## Specify libraries to link a library or executable target against
@@ -236,6 +238,9 @@ target_link_libraries(quat_to_euler_ang_converter
    ${catkin_LIBRARIES}
  )
     target_link_libraries(force_moment_accommodation
+   ${catkin_LIBRARIES}
+ )
+    target_link_libraries(force_moment_accommodation_interaction_port
    ${catkin_LIBRARIES}
  )
      target_link_libraries(translational_wiggle_push

@@ -116,9 +116,9 @@ geometry_msgs::PoseStamped ft_frame_pose_stamped;
 geometry_msgs::TransformStamped ft_frame_transform_stamped; 
 
 // Define an interaction Port to be published to other skills for relative motion of the attractor
-geometry_msgs::PoseStamped interaction_port_frame_pose_stamped;
-Eigen::Affine3d interaction_port_frame_with_respect_to_robot_;
-Eigen::MatrixXd interaction_port_frame_rotation_matrix_;
+geometry_msgs::PoseStamped interaction_port_frame_pose_stamped; 
+Eigen::Affine3d interaction_port_frame_with_respect_to_robot_; //unused
+Eigen::MatrixXd interaction_port_frame_rotation_matrix_; //unused
 // tf::StampedTransform interaction_frame_transform_stamped; 
 
 // Define the transform for the current frame, it is either the stowage frame or the task frame 
@@ -188,6 +188,16 @@ Eigen::Matrix3d rotation_matrix_from_euler_angles(Eigen::Vector3d euler_angle_ve
    	x_rotation(2,2) = cos(euler_angle_vector(0));
 
    	rotation_matrix_from_euler_angles = z_rotation * y_rotation * x_rotation;
+}
+
+// MATH: Function converts a vector of euler angles into a rotation matrix
+Eigen::Matrix3d rotation_matrix_from_vector_of_angles(Eigen::Vector3d angle_vector) {
+	double angle = angle_vector.norm(); // Calculate the length of the vector (the angle)
+	Eigen::Vector3d axis = angle_vector / angle; // Divide out this length to get us the unit length vector for the axis of rotation
+	Eigen::Matrix3d rotation_matrix_from_vector_of_angles;
+	Eigen::AngleAxisd angle_axis(angle, axis);
+	rotation_matrix_from_vector_of_angles = angle_axis.toRotationMatrix();
+	return rotation_matrix_from_vector_of_angles;
 }
 
 // ROS: Callback function receives the force-torque wrench
@@ -401,6 +411,9 @@ bool setCurrentFrameServiceCallback(irb120_accomodation_control::set_current_fra
 		current_frame_transform_stamped.transform.rotation.y = task_frame_pose_stamped.pose.orientation.y;
 		current_frame_transform_stamped.transform.rotation.z = task_frame_pose_stamped.pose.orientation.z;
 		current_frame_transform_stamped.transform.rotation.w = task_frame_pose_stamped.pose.orientation.w;
+
+		// Update what interaction port is here as well (fixed a bug that the first frame to recieve a command causes a major displacement of the attractor)
+		sensor_with_respect_to_current = task_frame_with_respect_to_robot_.inverse() * sensor_with_respect_to_robot;
 	}
 	else{
 		// interaction_port_frame_pose_stamped.header.frame_id = "/current_frame";
@@ -412,6 +425,9 @@ bool setCurrentFrameServiceCallback(irb120_accomodation_control::set_current_fra
 		current_frame_transform_stamped.transform.rotation.y = stowage_frame_pose_stamped.pose.orientation.y;
 		current_frame_transform_stamped.transform.rotation.z = stowage_frame_pose_stamped.pose.orientation.z;
 		current_frame_transform_stamped.transform.rotation.w = stowage_frame_pose_stamped.pose.orientation.w;
+
+		// Update what interaction port is here as well (fixed a bug that the first frame to recieve a command causes a major displacement of the att4ractor)
+		sensor_with_respect_to_current = stowage_frame_with_respect_to_robot_.inverse() * sensor_with_respect_to_robot;
 	}
 	// send Updated information back
 	response.updated_frame = current_frame;
@@ -810,24 +826,25 @@ int main(int argc, char **argv) {
 		if (!freeze_mode && first_loop_after_freeze) { //TODO Change to be based off of FT sensor
 			
 			//TODO Code for attractor and tool pose in current_frame the bumpless attr pose calculated here
-			// // Define the virtual position based on the wrench on the FT sensor in the current frame, with the interaction port defined in the current frame (convert from )
-			// bumpless_virtual_attractor_position = -(k_trans.asDiagonal().inverse() * wrench_with_respect_to_current.head(3)); 
-			// // Then add this offset onto the current pose of the interaction port
-			// bumpless_virtual_attractor_position(0) += interaction_port_frame_pose_stamped.pose.position.x;
-			// bumpless_virtual_attractor_position(1) += interaction_port_frame_pose_stamped.pose.position.y;
-			// bumpless_virtual_attractor_position(2) += interaction_port_frame_pose_stamped.pose.position.z;
+			// Define the virtual position based on the wrench on the FT sensor in the current frame, with the interaction port defined in the current frame (convert from )
+			bumpless_virtual_attractor_position = -(k_trans.asDiagonal().inverse() * wrench_with_respect_to_current.head(3)); 
+			// Then add this offset onto the current pose of the interaction port
+			bumpless_virtual_attractor_position(0) += interaction_port_frame_pose_stamped.pose.position.x;
+			bumpless_virtual_attractor_position(1) += interaction_port_frame_pose_stamped.pose.position.y;
+			bumpless_virtual_attractor_position(2) += interaction_port_frame_pose_stamped.pose.position.z;
 
-			// // Update virtual attractor position to bumpless virtual attractor position
-			// virtual_attractor_pos(0) = bumpless_virtual_attractor_position(0);
-			// virtual_attractor_pos(1) = bumpless_virtual_attractor_position(1);
-			// virtual_attractor_pos(2) = bumpless_virtual_attractor_position(2);
+			// Update virtual attractor position to bumpless virtual attractor position
+			virtual_attractor_pos(0) = bumpless_virtual_attractor_position(0);
+			virtual_attractor_pos(1) = bumpless_virtual_attractor_position(1);
+			virtual_attractor_pos(2) = bumpless_virtual_attractor_position(2);
 
-			
+
 			// Calculate the orientation of the attractor based on the felt wrench, and then add on the orientation of the ft sensor
 			// We get the offset of the attractor required, and then we can conver it to a rotation matrix, and then add that rotation on to the current orientation of the IP in the current frame
-			// bumpless_virtual_attractor_angles = -(k_rot.asDiagonal().inverse() * wrench_with_respect_to_current.tail(3));
+			bumpless_virtual_attractor_angles = -(k_rot.asDiagonal().inverse() * wrench_with_respect_to_current.tail(3));
 			
 			// Convert bumpless attr to rot matrix (define a func here, vec of angles to AA, then AA to rot)
+			virtual_attractor_rotation_matrix = rotation_matrix_from_vector_of_angles(bumpless_virtual_attractor_angles) * sensor_with_respect_to_current.linear(); //! not done yet
 			// Take this rot mat, and then post multiply it to the current ft rotation matrix in the appropriate frame (IP, maybe define a new Affine for it?)
 
 			// Another implementation is to combine the small angle representations of the IP and this calculated delta and then convert from vector of angles (AA) to Rotation matrix
@@ -835,24 +852,27 @@ int main(int argc, char **argv) {
 			// Get the angle axis representation of the ft, multiply the axis by the angle
 
 
+			//! !!!!!!!!!!!!!!!!!
+			//! OLD CONTROL LAW
+			//! !!!!!!!!!!!!!!!!!
+			// // Find bumpless virtual attractor position: the negative force devided by the translational spring constant, plus the end effector position
+			// bumpless_virtual_attractor_position = -wrench_with_respect_to_robot.head(3) / K_virtual_translational + sensor_with_respect_to_robot.translation();
+			// // Update virtual attractor position to bumpless virtual attractor position
+			// virtual_attractor_pos(0) = bumpless_virtual_attractor_position(0);
+			// virtual_attractor_pos(1) = bumpless_virtual_attractor_position(1);
+			// virtual_attractor_pos(2) = bumpless_virtual_attractor_position(2);
+			// // Find bumpless virtual attractor angles: (the negative torque divided by the anglular spring constant) plus (the angle of the tool with respect to the robot)
+			// bumpless_virtual_attractor_angles(0) =  -wrench_with_respect_to_robot(3) / K_virtual_angular + decompose_rot_mat(sensor_with_respect_to_robot.linear())(0);
+			// bumpless_virtual_attractor_angles(1) =  -wrench_with_respect_to_robot(4) / K_virtual_angular + decompose_rot_mat(sensor_with_respect_to_robot.linear())(1);
+			// bumpless_virtual_attractor_angles(2) =  -wrench_with_respect_to_robot(5) / K_virtual_angular + decompose_rot_mat(sensor_with_respect_to_robot.linear())(2);
+			// // Update the virtual attractor rotation matrix
+			// virtual_attractor_rotation_matrix = rotation_matrix_from_euler_angles(bumpless_virtual_attractor_angles);
 
-			// Find bumpless virtual attractor position: the negative force devided by the translational spring constant, plus the end effector position
-			bumpless_virtual_attractor_position = -wrench_with_respect_to_robot.head(3) / K_virtual_translational + sensor_with_respect_to_robot.translation();
-			// Update virtual attractor position to bumpless virtual attractor position
-			virtual_attractor_pos(0) = bumpless_virtual_attractor_position(0);
-			virtual_attractor_pos(1) = bumpless_virtual_attractor_position(1);
-			virtual_attractor_pos(2) = bumpless_virtual_attractor_position(2);
-			// Find bumpless virtual attractor angles: (the negative torque divided by the anglular spring constant) plus (the angle of the tool with respect to the robot)
-			bumpless_virtual_attractor_angles(0) =  -wrench_with_respect_to_robot(3) / K_virtual_angular + decompose_rot_mat(sensor_with_respect_to_robot.linear())(0);
-			bumpless_virtual_attractor_angles(1) =  -wrench_with_respect_to_robot(4) / K_virtual_angular + decompose_rot_mat(sensor_with_respect_to_robot.linear())(1);
-			bumpless_virtual_attractor_angles(2) =  -wrench_with_respect_to_robot(5) / K_virtual_angular + decompose_rot_mat(sensor_with_respect_to_robot.linear())(2);
-			// Update the virtual attractor rotation matrix
-			virtual_attractor_rotation_matrix = rotation_matrix_from_euler_angles(bumpless_virtual_attractor_angles);
+			// //! Define our virtual wrench, we just swap out the K_virts with the matrices as diagonals (or the box), and use the variables that are defined in the current frame (virt attr and IP)
+			// // Calculate the virtual forces
+			// virtual_force.head(3) = K_virtual_translational * (virtual_attractor_pos - sensor_with_respect_to_robot.translation());
+			// virtual_force.tail(3) = K_virtual_angular * (delta_phi_from_rots(sensor_with_respect_to_robot.linear(), virtual_attractor_rotation_matrix));
 
-			//! Define our virtual wrench, we just swap out the K_virts with the matrices as diagonals (or the box), and use the variables that are defined in the current frame (virt attr and IP)
-			// Calculate the virtual forces
-			virtual_force.head(3) = K_virtual_translational * (virtual_attractor_pos - sensor_with_respect_to_robot.translation());
-			virtual_force.tail(3) = K_virtual_angular * (delta_phi_from_rots(sensor_with_respect_to_robot.linear(), virtual_attractor_rotation_matrix));
 			// Output 
 			cout<<"Bumpless attractor used"<<endl;
 			cout<<"wrench torques"<<endl<<wrench_with_respect_to_robot.tail(3)<<endl;
@@ -867,8 +887,8 @@ int main(int argc, char **argv) {
 			if(virtual_attractor_established) {
 				//! Define our virtual wrench, we just swap out the K_virts with the matrices as diagonals (or the box), and use the variables that are defined in the current frame (virt attr and IP)
 				// Calculate the virtual forces
-				virtual_force.head(3) = K_virtual_translational * (virtual_attractor_pos - sensor_with_respect_to_robot.translation());
-				virtual_force.tail(3) = K_virtual_angular * (delta_phi_from_rots(sensor_with_respect_to_robot.linear(), virtual_attractor_rotation_matrix));
+				// virtual_force.head(3) = K_virtual_translational * (virtual_attractor_pos - sensor_with_respect_to_robot.translation());
+				// virtual_force.tail(3) = K_virtual_angular * (delta_phi_from_rots(sensor_with_respect_to_robot.linear(), virtual_attractor_rotation_matrix));
 				// Output
 				cout<<"virtual attractor pose"<<endl;
 				cout<<virtual_attractor_pos<<endl;
@@ -885,7 +905,7 @@ int main(int argc, char **argv) {
 		cout<<"current frame: "<<current_frame<<endl;
 
 		//! new changes, calculate the virtual wrench out here
-		if(!freeze_mode){
+		if(virtual_attractor_established && !freeze_mode){
 			// calculate the virtual force 
 			virtual_force.head(3) = K_virtual_translational * (virtual_attractor_pos - sensor_with_respect_to_current.translation());
 			virtual_force.tail(3) = K_virtual_angular * (delta_phi_from_rots(sensor_with_respect_to_current.linear(), virtual_attractor_rotation_matrix));
@@ -897,29 +917,35 @@ int main(int argc, char **argv) {
 		// CONTROL LAW BEGIN
 		//! Remove cartesian acceleration, just do:
 		// Combine the virtual and measured wrench in current frame
-		// Eigen::VectorXd combined_wrench = virtual_force + wrench_in_current_frame;
-		// // Calculate our desired twist in current frame through accommodation control
-		// Eigen::VectorXd desired_twist_in_current_frame = b_des_inv * combined_wrench;
-		// // Transform the twist into the base frame for the jacobian
-		// desired_twist.head(3) = sensor_with_respect_to_current.linear() * desired_twist_in_current_frame.head(3);
-		// desired_twist.tail(3) = sensor_with_respect_to_current.linear() * desired_twist_in_current_frame.tail(3);
+		Eigen::VectorXd combined_wrench = virtual_force + wrench_in_current_frame;
+		// Calculate our desired twist in current frame through accommodation control
+		Eigen::VectorXd desired_twist_in_current_frame = b_des_inv * combined_wrench;
+		// Transform the twist into the base frame for the jacobian
+		desired_twist.head(3) = sensor_with_respect_to_robot.linear() * desired_twist_in_current_frame.head(3);
+		desired_twist.tail(3) = sensor_with_respect_to_robot.linear() * desired_twist_in_current_frame.tail(3);
 
-
-		// Calculate the desired twists with the two damping gains
-		desired_twist_with_gain.head(3) = -B_virtual_translational * desired_twist.head(3);
-		desired_twist_with_gain.tail(3) = -B_virtual_rotational * desired_twist.tail(3);
-		// Calculate the desired cartesian accelleration
-		desired_cartesian_acceleration = inertia_matrix_inverted*(desired_twist_with_gain + wrench_with_respect_to_robot + virtual_force);
-		// CONTROL LAW END
-
-		// Calculate the desired twist by integrating the acceleration
-		if(!freeze_mode) desired_twist += desired_cartesian_acceleration*dt_;
-		// Zero the twist if freeze/latched mode is on
-		else {
+		// Check if we are frozen or not
+		if(freeze_mode){
 			desired_twist<<0,0,0,0,0,0;
 			// Output
 			cout<<"freeze mode on"<<endl;
 		}
+
+		// Calculate the desired twists with the two damping gains
+		// desired_twist_with_gain.head(3) = -B_virtual_translational * desired_twist.head(3);
+		// desired_twist_with_gain.tail(3) = -B_virtual_rotational * desired_twist.tail(3);
+		// // Calculate the desired cartesian accelleration
+		// desired_cartesian_acceleration = inertia_matrix_inverted*(desired_twist_with_gain + wrench_with_respect_to_robot + virtual_force);
+		// CONTROL LAW END
+
+		// // Calculate the desired twist by integrating the acceleration
+		// if(!freeze_mode) desired_twist += desired_cartesian_acceleration*dt_;
+		// // Zero the twist if freeze/latched mode is on
+		// else {
+		// 	desired_twist<<0,0,0,0,0,0;
+		// 	// Output
+		// 	cout<<"freeze mode on"<<endl;
+		// }
 
 		// Calculate the desired joint velocities from the desired twist
 		// TODO CHANGE FOR ROBOT AGNOSTIC

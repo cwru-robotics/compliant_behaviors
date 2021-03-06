@@ -492,12 +492,12 @@ class Application(tk.Frame):
         # print("Here, i run a command using os, skill 2")
 
         command = \
-            'rosrun behavior_algorithms force_moment_accommodation'
+            'rosrun behavior_algorithms force_moment_accommodation_interaction_port'
         run_time = self.parse_entry()
         if run_time > 0:
             command = command + ' _run_time:=%f' % run_time
 
-        # print(command)
+        print(command)
 
         time.sleep(delay_len)
         os.system(command)  
@@ -508,7 +508,7 @@ class Application(tk.Frame):
         # print("Here, i run a command using os, skill 2")
 
         time.sleep(delay_len)
-        os.system('rosrun behavior_algorithms force_moment_accommodation _run_time:=10'
+        os.system('rosrun behavior_algorithms force_moment_accommodation_interaction_port _run_time:=10'
                   )  
         time.sleep(delay_len)
 
@@ -517,7 +517,7 @@ class Application(tk.Frame):
         # print("Here, i run a command using os, skill 1")
 
         time.sleep(delay_len)
-        os.system('rosrun behavior_algorithms force_moment_accommodation _run_time:=5'
+        os.system('rosrun behavior_algorithms force_moment_accommodation_interaction_port _run_time:=5'
                   )  
         time.sleep(delay_len)
 

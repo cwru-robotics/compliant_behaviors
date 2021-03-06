@@ -255,44 +255,6 @@ int main(int argc, char** argv) {
 
     // ROS: for communication between programs
 
-    // spin, while we don't have data
-    while(!freeze_updated){
-        ros::spinOnce();
-        naptime.sleep();
-    }
-    
-    cout<<freeze_mode_status<<endl;
-    cout<<freeze_srv.response<<endl;
-
-    
-    // Check here after a spin, and unfreeze if it is frozen //! uncomment after checking new cartp2ptwl with current_frame based math
-    // while(freeze_mode_status.data == 1 && freeze_mode){
-        
-    //     if(freeze_updated && freeze_client.call(freeze_srv)){
-    //         // success
-    //         cout<<"Called freeze mode service succesfully"<<endl;
-    //     }
-    //     else{
-    //         // failed to call service
-    //         ROS_ERROR("Failed to call freeze service");
-    //     }
-    //     ros::spinOnce();
-    //     naptime.sleep();
-    //     freeze_updated = false;
-
-    // }
-    
-    // spin, while we don't have data
-    while(!freeze_updated){
-        ros::spinOnce();
-        naptime.sleep();
-    }
-
-
-    cout<<freeze_mode_status<<endl;
-    cout<<freeze_srv.response<<endl;
-
-    // should now be unfrozen
 
     // The end effector pose (current_pose) and force torque data (ft_in_robot_frame) are global variables.
     ROS_INFO("Before Reading params");
@@ -408,15 +370,13 @@ int main(int argc, char** argv) {
         ROS_INFO_STREAM(set_frame_srv.response.updated_frame);
     }
     ROS_INFO("After calling set frame service");
-    // If we are in the interaction port for the FT, then our starting pose and calculations are all done wrt FT
-    // if(interaction_port_is_ft){ //! Decide where we want this selected, maybe it is something we get from the acc controller? published somehow
-    //     interaction_pose = ft_frame;
-    // }
-    // else{
-    //     interaction_pose = current_pose;
-    // }
 
-    // ROS_INFO("Output from parameter for target_distance; %f", TARGET_DISTANCE); 
+    // Update our values (may want to spin more than once?)
+    for(int i = 0; i < 10; i++){
+        naptime.sleep();
+        ros::spinOnce();
+    }
+    
 
     // With labeled parameter, now call service to send message that program will start
     //TODO update this message
@@ -440,7 +400,7 @@ int main(int argc, char** argv) {
     srv.request.status = "Unkown";
 
     // ROS: Wait until we have position data. Our default position is 0.
-    while(current_pose.position.x == 0 || tool_vector_z.x == 0 || task_vector_z.x == 0 || ft_frame.position.x == 0) ros::spinOnce();
+    while(current_pose.position.x == 0 || tool_vector_z.x == 0 || task_vector_z.x == 0 || interaction_pose.position.x == 0) ros::spinOnce();
 
     //! We want to use the bumpless start, not just the ft pose, we can either subscribe to the bumpless started pose of the virtual attractor (when we toggle we can get the pose of the attractor? or sub to it)
 
@@ -483,23 +443,6 @@ int main(int argc, char** argv) {
 
     // Update to accept input of goal pose here, and then add the deltas 
     geometry_msgs::Vector3 delta_trans_vec;
-    // if(task){
-    //     delta_trans_vec.x = (x * task_vector_x.x) + (y * task_vector_y.x) + (z * task_vector_z.x);
-    //     delta_trans_vec.y = (x * task_vector_x.y) + (y * task_vector_y.y) + (z * task_vector_z.y);
-    //     delta_trans_vec.z = (x * task_vector_x.z) + (y * task_vector_y.z) + (z * task_vector_z.z);
-    // }
-    // else if(stowage){
-    //     delta_trans_vec.x = (x * stowage_vector_x.x) + (y * stowage_vector_y.x) + (z * stowage_vector_z.x);
-    //     delta_trans_vec.y = (x * stowage_vector_x.y) + (y * stowage_vector_y.y) + (z * stowage_vector_z.y);
-    //     delta_trans_vec.z = (x * stowage_vector_x.z) + (y * stowage_vector_y.z) + (z * stowage_vector_z.z);
-    // }
-    // else{
-    //     // The values from the parameters are stored here, scale the tool vecs, then add them together to get the delta vec
-    //     delta_trans_vec.x = (x * tool_vector_x.x) + (y * tool_vector_y.x) + (z * tool_vector_z.x);
-    //     delta_trans_vec.y = (x * tool_vector_x.y) + (y * tool_vector_y.y) + (z * tool_vector_z.y);
-    //     delta_trans_vec.z = (x * tool_vector_x.z) + (y * tool_vector_y.z) + (z * tool_vector_z.z);
-    // }
-
     // In the current frame, we translate x, y, z directly 
     delta_trans_vec.x = x;
     delta_trans_vec.y = y;
@@ -675,6 +618,45 @@ int main(int argc, char** argv) {
     virtual_attractor.header.frame_id = "current_frame";
 
 
+    // spin, while we don't have data
+    while(!freeze_updated){
+        ros::spinOnce();
+        naptime.sleep();
+    }
+    
+    cout<<freeze_mode_status<<endl;
+    cout<<freeze_srv.response<<endl;
+
+    
+    // Check here after a spin, and unfreeze if it is frozen //! uncomment after checking new cartp2ptwl with current_frame based math
+    while(freeze_mode_status.data == 1 && freeze_mode){
+        
+        if(freeze_updated && freeze_client.call(freeze_srv)){
+            // success
+            cout<<"Called freeze mode service succesfully"<<endl;
+        }
+        else{
+            // failed to call service
+            ROS_ERROR("Failed to call freeze service");
+        }
+        ros::spinOnce();
+        naptime.sleep();
+        freeze_updated = false;
+
+    }
+    
+    // spin, while we don't have data
+    while(!freeze_updated){
+        ros::spinOnce();
+        naptime.sleep();
+    }
+
+
+    cout<<freeze_mode_status<<endl;
+    cout<<freeze_srv.response<<endl;
+
+    // should now be unfrozen
+
     // Used in the loop to determine the run time and time out additional length to allow it to settle in the main function
     double total_number_of_loops = n_steps + (SETTLE_TIME / DT);
     double loops_so_far = 0;
@@ -688,7 +670,7 @@ int main(int argc, char** argv) {
     3. The target orientation has been reached
     4. There was an external call to freeze the system, exiting this command
     */
-    while( (loops_so_far < total_number_of_loops) && !effort_limit_crossed && !target_reached){ // && !freeze_mode) {
+    while( (loops_so_far < total_number_of_loops) && !effort_limit_crossed && !target_reached && !freeze_mode) {
         // ROS: for communication between programs
         ros::spinOnce();
         cout<<"Loops so far: "<<loops_so_far<<endl<<"n_steps: "<<n_steps<<endl<<"total_number_of_loops: "<<total_number_of_loops<<endl;
