@@ -151,6 +151,14 @@ int main(int argc, char** argv) {
 	double vals;
 	sensor_msgs::JointState jointstate;
 	jointstate.position.resize(6);
+	// testing for joint state pub
+	jointstate.name.push_back("joint1");
+	jointstate.name.push_back("joint2");
+	jointstate.name.push_back("joint3");
+	jointstate.name.push_back("joint4");
+	jointstate.name.push_back("joint5");
+	jointstate.name.push_back("joint6");
+
 	char *robot_ip = "192.168.125.1";
 	char *serv_ip = "192.168.125.3";
 	//char *msg = "R";
@@ -214,7 +222,7 @@ int main(int argc, char** argv) {
 					
 					// NEW 7/6/19 give this topic a header so that rqt_plot can plot it
 					jointstate.header.stamp = ros::Time::now();
-
+					jointstate.header.frame_id = "map";
 					joint_state_publisher.publish(jointstate);
 					
 					g_seq_no = robot_message->header().seqno();

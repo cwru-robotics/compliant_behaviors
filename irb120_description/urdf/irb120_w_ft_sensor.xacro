@@ -17,10 +17,10 @@
   <xacro:include filename="$(find irb120_description)/urdf/materials.xacro" />
 
   <!-- Used for fixing robot to Gazebo 'base_link' -->
-  <link name="world"/>
+  <link name="map"/>
 
   <joint name="fixed" type="fixed">
-    <parent link="world"/>
+    <parent link="map"/>
     <child link="link1"/>
   </joint>
 
@@ -298,9 +298,9 @@
     <type>transmission_interface/SimpleTransmission</type>
     <joint name="joint1">
       <hardwareInterface>PositionJointInterface</hardwareInterface>flange_stf
-[ INFO] [1512929221.358296873, 54.845000000]: frame_id: system_ref_frame
+<!-- [ INFO] [1512929221.358296873, 54.845000000]: frame_id: system_ref_frame
 
-[ INFO] [1512929221.358314256, 54.845000000]: child_frame_id: link7
+[ INFO] [1512929221.358314256, 54.845000000]: child_frame_id: link7 -->
 
     </joint>
     <actuator name="motor1">

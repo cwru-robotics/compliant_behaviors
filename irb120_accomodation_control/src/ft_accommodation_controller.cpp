@@ -378,7 +378,7 @@ bool setCurrentFrameServiceCallback(irb120_accomodation_control::set_current_fra
 	}
 	else if (!strcmp(task_name.c_str(), "Stowage")){
 		current_frame = "Stowage";
-		k_trans << 1500,1500,1500;
+		k_trans << 1000,1000,1000;
 		k_rot << 40,40,40;
 		k_combined.topLeftCorner(3,3) = k_trans.asDiagonal();
 		k_combined.bottomRightCorner(3,3) = k_rot.asDiagonal();
@@ -515,9 +515,9 @@ int main(int argc, char **argv) {
 	// Declare matricies and vectors
 	Eigen::MatrixXd robot_inertia_matrix(6,6); // Unused
 	Eigen::VectorXd current_end_effector_pose(6);
+	Eigen::VectorXd sensor_pose(6);
 	Eigen::VectorXd wrench_with_respect_to_robot(6);
 	Eigen::VectorXd wrench_with_respect_to_current(6);
-	Eigen::VectorXd wrench_in_current_frame(6);
 	Eigen::VectorXd virtual_force(6);
 	Eigen::VectorXd desired_joint_velocity = Eigen::VectorXd::Zero(6);
 	Eigen::VectorXd desired_cartesian_acceleration(6);
@@ -892,6 +892,7 @@ int main(int argc, char **argv) {
 				// Output
 				cout<<"virtual attractor pose"<<endl;
 				cout<<virtual_attractor_pos<<endl;
+				cout<<decompose_rot_mat(virtual_attractor_rotation_matrix)<<endl;
 			}
 			// If we haven't established a virtual attractor
 			else{
@@ -917,7 +918,7 @@ int main(int argc, char **argv) {
 		// CONTROL LAW BEGIN
 		//! Remove cartesian acceleration, just do:
 		// Combine the virtual and measured wrench in current frame
-		Eigen::VectorXd combined_wrench = virtual_force + wrench_in_current_frame;
+		Eigen::VectorXd combined_wrench = virtual_force + wrench_with_respect_to_current;
 		// Calculate our desired twist in current frame through accommodation control
 		Eigen::VectorXd desired_twist_in_current_frame = b_des_inv * combined_wrench;
 		// Transform the twist into the base frame for the jacobian
@@ -930,6 +931,8 @@ int main(int argc, char **argv) {
 			// Output
 			cout<<"freeze mode on"<<endl;
 		}
+		cout<<"Desired twist: "<<endl<<desired_twist<<endl;
+		cout<<"Combined Wrench: "<<endl<<combined_wrench<<endl;
 
 		// Calculate the desired twists with the two damping gains
 		// desired_twist_with_gain.head(3) = -B_virtual_translational * desired_twist.head(3);
@@ -969,7 +972,10 @@ int main(int argc, char **argv) {
 		arm_publisher.publish(desired_joint_state);
 		last_desired_joint_state_ = desired_joint_state;
 
-		cout<<"Current EE Pose:"<<endl<<current_end_effector_pose<<endl;
+		// Debug Output
+		sensor_pose.head(3) = sensor_with_respect_to_current.translation();
+		sensor_pose.tail(3) = decompose_rot_mat(sensor_with_respect_to_current.linear()); 
+		cout<<"Current FT Pose in Current:"<<endl<<sensor_pose<<endl;
 
 		// Publish cartesian coordinates of robot end effector
 		cartesian_log.pose.position.x = current_end_effector_pose(0);
