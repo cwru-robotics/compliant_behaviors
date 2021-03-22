@@ -266,6 +266,8 @@ int main(int argc, char** argv) {
     nh.param("/CartP2PTWL/rot_y", theta, 0.0);
     nh.param("/CartP2PTWL/rot_z", phi, 0.0);
     nh.param("/CartP2PTWL/bumpless", bumpless, false); //TODO fix and make sure this works
+
+    cout<<"Bumpless status: "<<bumpless<<endl; //! add a user interrupt/pause here to read and check this
     
     nh.param<std::string>("/CartP2PTWL/param_set", param_set, "Tool");
 

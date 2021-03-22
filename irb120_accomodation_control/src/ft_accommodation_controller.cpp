@@ -60,7 +60,7 @@ bool virtual_attractor_established = false;
 bool jnt_state_update = false;
 
 // initialize our K matrix, and our current frame
-string current_frame = "task";
+string current_frame = "Task";
 std_msgs::String current_frame_msg;
 // May want to define a 6x6, and get submatrices
 Eigen::Vector3d k_trans, k_rot;
@@ -350,9 +350,9 @@ bool setCurrentFrameServiceCallback(irb120_accomodation_control::set_current_fra
 		b_des_inv = b_des_vec.asDiagonal().inverse();
 	}
 	else if (!strcmp(task_name.c_str(), "Tool")){
-		current_frame = "Tool";
-		k_trans << 1500,1500,1500;
-		k_rot << 40,40,40;
+		current_frame = "Task";
+		k_trans << 100,100,100;
+		k_rot << 10,10,10;
 		k_combined.topLeftCorner(3,3) = k_trans.asDiagonal();
 		k_combined.bottomRightCorner(3,3) = k_rot.asDiagonal();
 		b_des_vec << 4000,4000,4000,200,200,200;
@@ -844,7 +844,7 @@ int main(int argc, char **argv) {
 			bumpless_virtual_attractor_angles = -(k_rot.asDiagonal().inverse() * wrench_with_respect_to_current.tail(3));
 			
 			// Convert bumpless attr to rot matrix (define a func here, vec of angles to AA, then AA to rot)
-			virtual_attractor_rotation_matrix = rotation_matrix_from_vector_of_angles(bumpless_virtual_attractor_angles) * sensor_with_respect_to_current.linear(); //! not done yet
+			virtual_attractor_rotation_matrix = sensor_with_respect_to_current.linear() * rotation_matrix_from_vector_of_angles(bumpless_virtual_attractor_angles); //! not done yet
 			// Take this rot mat, and then post multiply it to the current ft rotation matrix in the appropriate frame (IP, maybe define a new Affine for it?)
 
 			// Another implementation is to combine the small angle representations of the IP and this calculated delta and then convert from vector of angles (AA) to Rotation matrix
@@ -1075,7 +1075,7 @@ int main(int argc, char **argv) {
 		current_frame_wrench.torque.x = wrench_with_respect_to_current(3);
 		current_frame_wrench.torque.y = wrench_with_respect_to_current(4);
 		current_frame_wrench.torque.z = wrench_with_respect_to_current(5);
-		ft_pub.publish(current_frame_wrench);
+		current_frame_ft_pub.publish(current_frame_wrench);
 
 		// Update FT vec frame
 		ft_frame_rotation_matrix_ = sensor_with_respect_to_robot.linear();
