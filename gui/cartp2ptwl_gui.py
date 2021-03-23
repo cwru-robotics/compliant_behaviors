@@ -43,8 +43,8 @@ class Application(tk.Frame):
         self.joint_control = ttk.Frame(self.tab_control)
 
         self.tab_control.add(self.motion_control, text='Motion Control')
-        self.tab_control.add(self.wiggle_control, text='Dither Control')
         self.tab_control.add(self.rwe_control, text='RWE Control')
+        self.tab_control.add(self.wiggle_control, text='Dither Control')
         self.tab_control.add(self.joint_control, text='Joint Control')
 
         # Pack and display the tabs
@@ -96,13 +96,13 @@ class Application(tk.Frame):
         self.restore_wrench_eq_label = tk.Label(self.rwe_control,
                 text='Limp Mode:',
                 font='Courier 20 bold')
-        self.restore_wrench_eq_label.grid(row=5, column=1,
+        self.restore_wrench_eq_label.grid(row=0, column=1,
                 sticky=tk.NSEW, pady=5, padx=2)
 
         self.restore_wrench_eq = tk.Button(self.rwe_control,
                 text='text in', fg='blue',
                 command=self.restore_wrench_eq, font='Courier 20 bold')
-        self.restore_wrench_eq.grid(row=5, column=2, sticky=tk.NSEW,
+        self.restore_wrench_eq.grid(row=0, column=2, sticky=tk.NSEW,
                                    pady=5, padx=2)
 
         # Preset Value 1
@@ -111,7 +111,7 @@ class Application(tk.Frame):
                 text='10 sec', fg='blue',
                 command=self.restore_wrench_eq_preset_1,
                 font='Courier 20 bold')
-        self.restore_wrench_eq_preset_1.grid(row=5, column=4,
+        self.restore_wrench_eq_preset_1.grid(row=0, column=4,
                 sticky=tk.NSEW, pady=5, padx=2)
 
         # Preset Value 2
@@ -120,8 +120,29 @@ class Application(tk.Frame):
                 text='5 sec', fg='blue',
                 command=self.restore_wrench_eq_preset_2,
                 font='Courier 20 bold')
-        self.restore_wrench_eq_preset_2.grid(row=5, column=3,
+        self.restore_wrench_eq_preset_2.grid(row=0, column=3,
                 sticky=tk.NSEW, pady=5, padx=2)
+
+        # RWE Buttons for wrench preservation
+
+        self.rwe_trans_x = ttk.Checkbutton(self.rwe_control, text='Trans X')
+        self.rwe_trans_x.grid(row=1, column=1, sticky=tk.NSEW, pady=5, padx=2)
+        
+        self.rwe_trans_y = ttk.Checkbutton(self.rwe_control, text='Trans Y')
+        self.rwe_trans_y.grid(row=1, column=2, sticky=tk.NSEW, pady=5, padx=2)
+        
+        self.rwe_trans_z = ttk.Checkbutton(self.rwe_control, text='Trans Z')
+        self.rwe_trans_z.grid(row=1, column=3, sticky=tk.NSEW, pady=5, padx=2)
+        
+        self.rwe_rot_x = ttk.Checkbutton(self.rwe_control, text='Rot X')
+        self.rwe_rot_x.grid(row=1, column=4, sticky=tk.NSEW, pady=5, padx=2)
+
+        self.rwe_rot_y = ttk.Checkbutton(self.rwe_control, text='Rot Y')
+        self.rwe_rot_y.grid(row=1, column=5, sticky=tk.NSEW, pady=5, padx=20)
+
+        self.rwe_rot_z = ttk.Checkbutton(self.rwe_control, text='Rot Z')
+        self.rwe_rot_z.grid(row=1, column=6, sticky=tk.NSEW, pady=5, padx=2)
+
 
         #! Cart P2P 
 
@@ -497,29 +518,115 @@ class Application(tk.Frame):
         if run_time > 0:
             command = command + ' _run_time:=%f' % run_time
 
+        if self.rwe_trans_x.instate(['selected']):
+            trans_x = 1
+        else:
+            trans_x = 0
+        if self.rwe_trans_y.instate(['selected']):
+            trans_y = 1
+        else:
+            trans_y = 0
+        if self.rwe_trans_z.instate(['selected']):
+            trans_z = 1
+        else:
+            trans_z = 0
+        if self.rwe_rot_x.instate(['selected']):
+            rot_x = 1
+        else:
+            rot_x = 0
+        if self.rwe_rot_y.instate(['selected']):
+            rot_y = 1
+        else:
+            rot_y = 0
+        if self.rwe_rot_z.instate(['selected']):
+            rot_z = 1
+        else:
+            rot_z = 0
+
+        command = command + ' _trans_x:={0} _trans_y:={1} _trans_z:={2} _rot_x:={3} _rot_y:={4} _rot_z:={5} _param_set:={6}'.format(trans_x, trans_y, trans_z, rot_x, rot_y, rot_z, self.parameter_set.get())
+
         print(command)
 
-        time.sleep(delay_len)
-        os.system(command)  
-        time.sleep(delay_len)
+        # time.sleep(delay_len)
+        # os.system(command)  
+        # time.sleep(delay_len)
 
     def restore_wrench_eq_preset_1(self):
 
         # print("Here, i run a command using os, skill 2")
+        command = 'rosrun behavior_algorithms force_moment_accommodation_interaction_port _run_time:=10'
 
-        time.sleep(delay_len)
-        os.system('rosrun behavior_algorithms force_moment_accommodation_interaction_port _run_time:=10'
-                  )  
-        time.sleep(delay_len)
+        if self.rwe_trans_x.instate(['selected']):
+            trans_x = 1
+        else:
+            trans_x = 0
+        if self.rwe_trans_y.instate(['selected']):
+            trans_y = 1
+        else:
+            trans_y = 0
+        if self.rwe_trans_z.instate(['selected']):
+            trans_z = 1
+        else:
+            trans_z = 0
+        if self.rwe_rot_x.instate(['selected']):
+            rot_x = 1
+        else:
+            rot_x = 0
+        if self.rwe_rot_y.instate(['selected']):
+            rot_y = 1
+        else:
+            rot_y = 0
+        if self.rwe_rot_z.instate(['selected']):
+            rot_z = 1
+        else:
+            rot_z = 0
+
+        command = command + ' _trans_x:={0} _trans_y:={1} _trans_z:={2} _rot_x:={3} _rot_y:={4} _rot_z:={5} _param_set:={6}'.format(trans_x, trans_y, trans_z, rot_x, rot_y, rot_z, self.parameter_set.get())
+
+        print(command)
+
+        # time.sleep(delay_len)
+        # os.system(command)  
+        # time.sleep(delay_len)
 
     def restore_wrench_eq_preset_2(self):
 
         # print("Here, i run a command using os, skill 1")
+        command = 'rosrun behavior_algorithms force_moment_accommodation_interaction_port _run_time:=5'
 
-        time.sleep(delay_len)
-        os.system('rosrun behavior_algorithms force_moment_accommodation_interaction_port _run_time:=5'
-                  )  
-        time.sleep(delay_len)
+        if self.rwe_trans_x.instate(['selected']):
+            trans_x = 1
+        else:
+            trans_x = 0
+        if self.rwe_trans_y.instate(['selected']):
+            trans_y = 1
+        else:
+            trans_y = 0
+        if self.rwe_trans_z.instate(['selected']):
+            trans_z = 1
+        else:
+            trans_z = 0
+        if self.rwe_rot_x.instate(['selected']):
+            rot_x = 1
+        else:
+            rot_x = 0
+        if self.rwe_rot_y.instate(['selected']):
+            rot_y = 1
+        else:
+            rot_y = 0
+        if self.rwe_rot_z.instate(['selected']):
+            rot_z = 1
+        else:
+            rot_z = 0
+
+        command = command + ' _trans_x:={0} _trans_y:={1} _trans_z:={2} _rot_x:={3} _rot_y:={4} _rot_z:={5} _param_set:={6}'.format(
+            trans_x, trans_y, trans_z, rot_x, rot_y, rot_z, self.parameter_set.get())
+
+        print(command)
+        
+        # time.sleep(delay_len)
+        # os.system(command)  
+        # time.sleep(delay_len)
 
     
     # New example 
