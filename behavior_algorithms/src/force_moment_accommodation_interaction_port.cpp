@@ -60,11 +60,17 @@ void freeze_status_callback(const std_msgs::Int8& freeze_status_msg) {
 
 // MATH: Function converts a vector of euler angles into a rotation matrix
 Eigen::Matrix3d rotation_matrix_from_vector_of_angles(Eigen::Vector3d angle_vector) {
-	double angle = angle_vector.norm(); // Calculate the length of the vector (the angle)
-	Eigen::Vector3d axis = angle_vector / angle; // Divide out this length to get us the unit length vector for the axis of rotation
 	Eigen::Matrix3d rotation_matrix_from_vector_of_angles;
+	double angle = angle_vector.norm(); // Calculate the length of the vector (the angle)
+    cout<<"Angle: "<<angle<<endl;
+    if(angle == 0 || angle == -0){
+        rotation_matrix_from_vector_of_angles<<1,0,0,0,1,0,0,0,1;
+        return rotation_matrix_from_vector_of_angles;
+    }
+	Eigen::Vector3d axis = angle_vector / angle; // Divide out this length to get us the unit length vector for the axis of rotation
 	Eigen::AngleAxisd angle_axis(angle, axis);
 	rotation_matrix_from_vector_of_angles = angle_axis.toRotationMatrix();
+    cout<<"Mat from vec: "<<endl<<rotation_matrix_from_vector_of_angles<<endl;
 	return rotation_matrix_from_vector_of_angles;
 }
 
@@ -199,6 +205,7 @@ int main(int argc, char** argv) {
     k_rot(0) = k_mat.rot_mat.x;
     k_rot(1) = k_mat.rot_mat.y;
     k_rot(2) = k_mat.rot_mat.z;
+    cout<<"K mat"<<endl<<k_mat<<endl;
 
     //? Do we want a check for whether the current frame was set properly, how do we want the RWE to place the attractor? 
     // Current functionality to be just place it in whatever frame is active, might add a check for if frame didnt set (check response.status)
@@ -223,12 +230,16 @@ int main(int argc, char** argv) {
     wrench_with_respect_to_current(4) = ft_in_current_frame.torque.y;
     wrench_with_respect_to_current(5) = ft_in_current_frame.torque.z;
 
-    //! use selection matrix to modify wrench: DOUBLE CHECK 
+    // Add a check here, if selection mat norm is 0, then we just set virt attr @ pose of inter
+
+    //! use selection matrix to modify wrench: DOUBLE CHECK
     wrench_with_respect_to_current = selection_mat.asDiagonal() * wrench_with_respect_to_current;
+
+    cout<<"Modified Wrench: "<<endl<<wrench_with_respect_to_current<<endl;
 
     // Define the virtual position based on the wrench on the FT sensor in the current frame, with the interaction port defined in the current frame (convert from )
     Eigen::Vector3d bumpless_virtual_attractor_position = -(k_trans.asDiagonal().inverse() * wrench_with_respect_to_current.head(3)); 
-    // Then add this offset onto the current pose of the interaction port
+    // Then add this offset onto the pose of the interaction port in the current frame
     bumpless_virtual_attractor_position(0) += interaction_pose.position.x;
     bumpless_virtual_attractor_position(1) += interaction_pose.position.y;
     bumpless_virtual_attractor_position(2) += interaction_pose.position.z;
@@ -237,20 +248,23 @@ int main(int argc, char** argv) {
     // Calculate the orientation of the attractor based on the felt wrench, and then add on the orientation of the ft sensor
     // We get the offset of the attractor required, and then we can conver it to a rotation matrix, and then add that rotation on to the current orientation of the IP in the current frame
     Eigen::Vector3d bumpless_virtual_attractor_angles = -(k_rot.asDiagonal().inverse() * wrench_with_respect_to_current.tail(3));
-    
+    cout<<"Vector of angles: "<<endl<<bumpless_virtual_attractor_angles<<endl;
     /// Define rotation matrix of the interaction port 
+    cout<<"Pose of interaction port: "<<endl<<interaction_pose<<endl;
     Eigen::Matrix3d interaction_rot = Eigen::Quaterniond(interaction_pose.orientation.w,interaction_pose.orientation.x,interaction_pose.orientation.y,interaction_pose.orientation.z).toRotationMatrix();
+    cout<<"Rot mat of interaction port"<<endl<<interaction_rot<<endl;
     // Convert bumpless attr to rot matrix (define a func here, vec of angles to AA, then AA to rot)
     Eigen::Matrix3d virtual_attractor_rotation_matrix = interaction_rot * rotation_matrix_from_vector_of_angles(bumpless_virtual_attractor_angles); //! not done yet
     // Take this rot mat, and then post multiply it to the current ft rotation matrix in the appropriate frame (IP, maybe define a new Affine for it?)
-    
+    cout<<"Rot mat of virt attr"<<virtual_attractor_rotation_matrix<<endl;
     //! change to be interaction port
     // Put the virtual attractor at the end effector
     // virtual_attractor.pose = current_pose; // If we are using the tooltip
     virtual_attractor.pose.position.x = bumpless_virtual_attractor_position(0);
     virtual_attractor.pose.position.y = bumpless_virtual_attractor_position(1);
     virtual_attractor.pose.position.z = bumpless_virtual_attractor_position(2);
-    Eigen::Quaterniond virtual_quat(virtual_attractor_rotation_matrix);
+    Eigen::Quaterniond virtual_quat(virtual_attractor_rotation_matrix); //! Does this work
+    // cout<<"Quat of virt attr"<<virtual_quat<<endl;
     virtual_attractor.pose.orientation.w = virtual_quat.w();
     virtual_attractor.pose.orientation.x = virtual_quat.x();
     virtual_attractor.pose.orientation.y = virtual_quat.y();
@@ -258,6 +272,8 @@ int main(int argc, char** argv) {
 
     // virtual_attractor.pose = interaction_pose; // if we are using the interaction port 
     virtual_attractor.header.frame_id = "current_frame";
+
+    cout<<"Pose of virt attr: "<<endl<<virtual_attractor<<endl;
 
 
    //! we want to unfreeze here before the loop
@@ -272,7 +288,7 @@ int main(int argc, char** argv) {
     cout<<freeze_srv.response<<endl;
 
     
-    // Check here after a spin, and unfreeze if it is frozen //! uncomment after checking new cartp2ptwl with current_frame based math
+    // Check here after a spin, and unfreeze if it is frozen //! uncomment after checking with current_frame based math
     while(freeze_mode_status.data == 1 && freeze_mode){
         
         if(freeze_updated && freeze_client.call(freeze_srv)){
@@ -300,7 +316,7 @@ int main(int argc, char** argv) {
     cout<<freeze_srv.response<<endl;
     
     // Begin loop
-    while(loops_so_far <= total_number_of_loops) { //! add freeze mode exit cond?
+    while(loops_so_far <= total_number_of_loops && !freeze_mode) { //! add freeze mode exit cond? desired or no 
         // ROS: For communication
         ros::spinOnce();
 
@@ -312,8 +328,17 @@ int main(int argc, char** argv) {
         virtual_attractor_publisher.publish(virtual_attractor);
         naptime.sleep();
     }
-    srv.request.status = "Completed run of specified length";
 
+    // If we are not in the freeze mode, put the system into freeze mode before we exit
+    if(!freeze_mode){
+        srv.request.status = "Completed run of specified length";
+        freeze_client.call(freeze_srv);
+        cout<<"Completed run of "<<RUN_TIME<<" seconds"<<endl;
+    }else{
+        cout<<"Freeze mode called during loop"<<endl;
+    }
+
+    //! Update buffer.cpp
     // if(client.call(srv)){
     //     // success
     //     cout<<"Called service with name succesfully"<<endl;
@@ -323,10 +348,6 @@ int main(int argc, char** argv) {
     //     ROS_ERROR("Failed to call service status_service");
     // }
 
-    // If we are not in the freeze mode, put the system into freeze mode before we exit
-    if(!freeze_mode){
-        freeze_client.call(freeze_srv);
-    }
     
     // End of program
     cout<<"Done"<<endl;

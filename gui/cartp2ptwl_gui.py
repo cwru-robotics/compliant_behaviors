@@ -8,12 +8,16 @@ import ttk
 import os
 import time
 
+import subprocess # subprocess.Popen(cmd) to multithread the mtric thing
+
 # Length of the lag between sending and the machine receiving emssage
 delay_len = 0
 
 # List of options for preset values, to be associated with related values in each function
 options = ['Peg', 'Bottle_Cap', 'Cutting', 'Tool', 'Task', 'Stowage']
 selected_option = 4
+
+metric_cmd = "rosrun behavior_algorithms data_collect"
 
 class Application(tk.Frame):
 
@@ -547,9 +551,9 @@ class Application(tk.Frame):
 
         print(command)
 
-        # time.sleep(delay_len)
-        # os.system(command)  
-        # time.sleep(delay_len)
+        time.sleep(delay_len)
+        os.system(command)  
+        time.sleep(delay_len)
 
     def restore_wrench_eq_preset_1(self):
 
@@ -585,9 +589,9 @@ class Application(tk.Frame):
 
         print(command)
 
-        # time.sleep(delay_len)
-        # os.system(command)  
-        # time.sleep(delay_len)
+        time.sleep(delay_len)
+        os.system(command)  
+        time.sleep(delay_len)
 
     def restore_wrench_eq_preset_2(self):
 
@@ -624,9 +628,9 @@ class Application(tk.Frame):
 
         print(command)
         
-        # time.sleep(delay_len)
-        # os.system(command)  
-        # time.sleep(delay_len)
+        time.sleep(delay_len)
+        os.system(command)  
+        time.sleep(delay_len)
 
     
     # New example 
@@ -683,7 +687,11 @@ class Application(tk.Frame):
         print(command)
 
         time.sleep(delay_len)
+        # add subprocess for metrics here ? 
+        metric = subprocess.Popen(metric_cmd, shell=True)
         os.system(command)
+        metric.kill() # Does not seem to work, need to test this
+        os.system("rosnode kill data_collect")
         time.sleep(delay_len)
         
     
@@ -790,7 +798,7 @@ class Application(tk.Frame):
 
         # print("Here, i run a command using os, skill 2")
 
-        command = 'rosrun behavior_algorithms torsional_wiggle_pull'
+        command = 'rosrun behavior_algorithms current_torsional_wiggle_pull'
         run_time = self.parse_entry()
         if run_time > 0:
             command = command + ' _wiggle_time:=%f' % run_time
@@ -803,13 +811,13 @@ class Application(tk.Frame):
 
     def torsional_wiggle_pull_pre_1(self):
         time.sleep(delay_len)
-        os.system('rosrun behavior_algorithms torsional_wiggle_pull _wiggle_time:=3'
+        os.system('rosrun behavior_algorithms current_torsional_wiggle_pull _wiggle_time:=3'
                   )  
         time.sleep(delay_len)
 
     def torsional_wiggle_pull_pre_2(self):
         time.sleep(delay_len)
-        os.system('rosrun behavior_algorithms torsional_wiggle_pull _wiggle_time:=5'
+        os.system('rosrun behavior_algorithms current_torsional_wiggle_pull _wiggle_time:=5'
                   )  
         time.sleep(delay_len)
 
@@ -819,7 +827,7 @@ class Application(tk.Frame):
 
         # print("Here, i run a command using os, skill 2")
 
-        command = 'rosrun behavior_algorithms torsional_wiggle_push'
+        command = 'rosrun behavior_algorithms current_torsional_wiggle_push'
         run_time = self.parse_entry()
         if run_time > 0:
             command = command + ' _wiggle_time:=%f' % run_time
@@ -832,13 +840,13 @@ class Application(tk.Frame):
 
     def torsional_wiggle_push_pre_1(self):
         time.sleep(delay_len)
-        os.system('rosrun behavior_algorithms torsional_wiggle_push _wiggle_time:=3'
+        os.system('rosrun behavior_algorithms current_torsional_wiggle_push _wiggle_time:=3'
                   )  
         time.sleep(delay_len)
 
     def torsional_wiggle_push_pre_2(self):
         time.sleep(delay_len)
-        os.system('rosrun behavior_algorithms torsional_wiggle_push _wiggle_time:=5'
+        os.system('rosrun behavior_algorithms current_torsional_wiggle_push _wiggle_time:=5'
                   )  
         time.sleep(delay_len)
 
@@ -848,7 +856,7 @@ class Application(tk.Frame):
 
         # print("Here, i run a command using os, skill 2")
 
-        command = 'rosrun behavior_algorithms translational_wiggle_pull'
+        command = 'rosrun behavior_algorithms current_translational_wiggle_pull'
         run_time = self.parse_entry()
         if run_time > 0:
             command = command + ' _wiggle_time:=%f' % run_time
@@ -861,13 +869,13 @@ class Application(tk.Frame):
 
     def translational_wiggle_pull_pre_1(self):
         time.sleep(delay_len)
-        os.system('rosrun behavior_algorithms translational_wiggle_pull _wiggle_time:=3'
+        os.system('rosrun behavior_algorithms current_translational_wiggle_pull _wiggle_time:=3'
                   )  
         time.sleep(delay_len)
 
     def translational_wiggle_pull_pre_2(self):
         time.sleep(delay_len)
-        os.system('rosrun behavior_algorithms translational_wiggle_pull _wiggle_time:=5'
+        os.system('rosrun behavior_algorithms current_translational_wiggle_pull _wiggle_time:=5'
                   )  
         time.sleep(delay_len)
 
@@ -877,7 +885,7 @@ class Application(tk.Frame):
 
         # print("Here, i run a command using os, skill 2")
 
-        command = 'rosrun behavior_algorithms translational_wiggle_push'
+        command = 'rosrun behavior_algorithms current_translational_wiggle_push'
         run_time = self.parse_entry()
         if run_time > 0:
             command = command + ' _wiggle_time:=%f' % run_time
@@ -890,13 +898,13 @@ class Application(tk.Frame):
 
     def translational_wiggle_push_pre_1(self):
         time.sleep(delay_len)
-        os.system('rosrun behavior_algorithms translational_wiggle_push _wiggle_time:=3'
+        os.system('rosrun behavior_algorithms current_translational_wiggle_push _wiggle_time:=3'
                   )  
         time.sleep(delay_len)
 
     def translational_wiggle_push_pre_2(self):
         time.sleep(delay_len)
-        os.system('rosrun behavior_algorithms translational_wiggle_push _wiggle_time:=5'
+        os.system('rosrun behavior_algorithms current_translational_wiggle_push _wiggle_time:=5'
                   )  
         time.sleep(delay_len)
 

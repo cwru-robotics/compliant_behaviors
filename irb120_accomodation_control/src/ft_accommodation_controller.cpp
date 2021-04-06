@@ -333,11 +333,11 @@ bool setCurrentFrameServiceCallback(irb120_accomodation_control::set_current_fra
 	// do an if else for set tasks with predefined K matrices here, then update the response.updated_frame in the if else, and the last else will be return false, status = no known task sent
 	if (!strcmp(task_name.c_str(), "Peg")){
 		current_frame = "Task";
-		k_trans << 1500,1500,1500;
+		k_trans << 1000,1000,1000;
 		k_rot << 40,40,40;
 		k_combined.topLeftCorner(3,3) = k_trans.asDiagonal();
 		k_combined.bottomRightCorner(3,3) = k_rot.asDiagonal();
-		b_des_vec << 4000,4000,4000,200,200,200;
+		b_des_vec << 4000,4000,4000,100,100,100;
 		b_des_inv = b_des_vec.asDiagonal().inverse();
 	}
 	else if (!strcmp(task_name.c_str(), "Bottle_Cap")){
@@ -359,7 +359,7 @@ bool setCurrentFrameServiceCallback(irb120_accomodation_control::set_current_fra
 		b_des_inv = b_des_vec.asDiagonal().inverse();
 	}
 	else if (!strcmp(task_name.c_str(), "Cutting")){
-		current_frame = "Task";
+		current_frame = "Stowage";
 		k_trans << 1500,1500,1500;
 		k_rot << 40,40,40;
 		k_combined.topLeftCorner(3,3) = k_trans.asDiagonal();

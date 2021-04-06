@@ -386,7 +386,7 @@
  		</inertial>
  	</link>
 
- 	<joint name = "ft_sensor_jnt" type = "continuous">
+ 	<joint name = "ft_sensor_jnt" type = "fixed">
  		<parent link = "link7"/>
  		<child link = "ft_sensor_link"/>
  		<origin xyz = "0 0 0" rpy = "0 0 0"/>

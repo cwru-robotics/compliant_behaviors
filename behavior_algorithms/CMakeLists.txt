@@ -152,16 +152,21 @@ add_executable(orientation_targeting_effort_limiting_y src/orientation_targeting
 add_executable(orientation_targeting_effort_limiting_z src/orientation_targeting_effort_limiting_z.cpp)
 add_executable(compliant_cutting src/compliant_cutting.cpp)
 add_executable(force_moment_accommodation src/force_moment_accommodation.cpp)
-add_executable(force_moment_accommodation_interaction_port src/force_moment_accommodation_interaction_port.cpp)
 add_executable(translational_wiggle_push src/translational_wiggle_push.cpp)
 add_executable(torsional_wiggle_push src/torsional_wiggle_push.cpp)
 add_executable(translational_wiggle_pull src/translational_wiggle_pull.cpp)
 add_executable(torsional_wiggle_pull src/torsional_wiggle_pull.cpp)
 
 add_executable(freeze_position_targeting_effort_limiting_z src/freeze_position_targeting_effort_limiting_z.cpp)
+add_executable(force_moment_accommodation_interaction_port src/force_moment_accommodation_interaction_port.cpp)
 add_executable(ptwl_cartp2p src/ptwl_cartp2p.cpp)
 add_executable(cartp2ptwl src/cartp2ptwl.cpp)
 add_executable(restore_wrench_eq src/restore_wrench_eq.cpp)
+add_executable(current_translational_wiggle_push src/current_translational_wiggle_push.cpp)
+add_executable(current_torsional_wiggle_push src/current_torsional_wiggle_push.cpp)
+add_executable(current_translational_wiggle_pull src/current_translational_wiggle_pull.cpp)
+add_executable(current_torsional_wiggle_pull src/current_torsional_wiggle_pull.cpp)
+add_executable(data_collect src/data_collect.cpp)
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
@@ -176,6 +181,10 @@ add_dependencies(torsional_wiggle_push ${catkin_EXPORTED_TARGETS})
 add_dependencies(torsional_wiggle_pull ${catkin_EXPORTED_TARGETS})
 add_dependencies(translational_wiggle_push ${catkin_EXPORTED_TARGETS})
 add_dependencies(translational_wiggle_pull ${catkin_EXPORTED_TARGETS})
+add_dependencies(current_torsional_wiggle_push ${catkin_EXPORTED_TARGETS})
+add_dependencies(current_torsional_wiggle_pull ${catkin_EXPORTED_TARGETS})
+add_dependencies(current_translational_wiggle_push ${catkin_EXPORTED_TARGETS})
+add_dependencies(current_translational_wiggle_pull ${catkin_EXPORTED_TARGETS})
 add_dependencies(ptwl_cartp2p ${catkin_EXPORTED_TARGETS})
 add_dependencies(freeze_position_targeting_effort_limiting_z ${catkin_EXPORTED_TARGETS})
 add_dependencies(cartp2ptwl ${catkin_EXPORTED_TARGETS})
@@ -189,6 +198,7 @@ add_dependencies(compliant_cutting ${catkin_EXPORTED_TARGETS})
 add_dependencies(restore_wrench_eq ${catkin_EXPORTED_TARGETS})
 add_dependencies(force_moment_accommodation ${catkin_EXPORTED_TARGETS})
 add_dependencies(force_moment_accommodation_interaction_port ${catkin_EXPORTED_TARGETS})
+add_dependencies(data_collect ${catkin_EXPORTED_TARGETS})
 
 
 ## Specify libraries to link a library or executable target against
@@ -255,6 +265,18 @@ target_link_libraries(quat_to_euler_ang_converter
      target_link_libraries(torsional_wiggle_pull
    ${catkin_LIBRARIES}
  )
+     target_link_libraries(current_translational_wiggle_push
+   ${catkin_LIBRARIES}
+ )
+     target_link_libraries(current_torsional_wiggle_push
+   ${catkin_LIBRARIES}
+ )
+     target_link_libraries(current_translational_wiggle_pull
+   ${catkin_LIBRARIES}
+ )
+     target_link_libraries(current_torsional_wiggle_pull
+   ${catkin_LIBRARIES}
+ )
      target_link_libraries(freeze_position_targeting_effort_limiting_z
    ${catkin_LIBRARIES}
  )
@@ -265,6 +287,9 @@ target_link_libraries(quat_to_euler_ang_converter
   ${catkin_LIBRARIES}
  )
   target_link_libraries(restore_wrench_eq
+  ${catkin_LIBRARIES}
+ )
+  target_link_libraries(data_collect
   ${catkin_LIBRARIES}
  )
 #############

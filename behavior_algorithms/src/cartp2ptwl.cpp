@@ -286,8 +286,8 @@ int main(int argc, char** argv) {
     // Here, the values for PULL_DISTANCE and FORCE_THRESHOLD are changed according to what setting the GUI is on for the appropriate task
     if(!strcmp(param_set.c_str(), "Peg")){
         // set the new values here
-        FORCE_THRESHOLD = 12;
-        TORQUE_THRESHOLD = 2;
+        FORCE_THRESHOLD = 30;
+        TORQUE_THRESHOLD = 4;
         KEEP_CUTTING_DISTANCE = 0;
         SETTLE_TIME = 5;
         
@@ -327,9 +327,9 @@ int main(int argc, char** argv) {
         KEEP_CUTTING_DISTANCE = 0.00075; // was 0.001
         SETTLE_TIME = 5;
 
-        stowage = false;
+        stowage = true; // stowage true, task false?
         cutting = true;
-        task = true;
+        task = false;
         ROS_INFO("Params set for CUTTING");
     }
     else if (!strcmp(param_set.c_str(), "Task")){
@@ -619,6 +619,11 @@ int main(int argc, char** argv) {
     virtual_attractor.pose = interaction_pose; //! CHANGE TO BE FT
     virtual_attractor.header.frame_id = "current_frame";
 
+    //! In in cutting, pull down to keep contact
+    if(cutting){
+        virtual_attractor.pose.position.z += KEEP_CUTTING_DISTANCE;
+    }
+
 
     // spin, while we don't have data
     while(!freeze_updated){
@@ -677,15 +682,7 @@ int main(int argc, char** argv) {
         ros::spinOnce();
         cout<<"Loops so far: "<<loops_so_far<<endl<<"n_steps: "<<n_steps<<endl<<"total_number_of_loops: "<<total_number_of_loops<<endl;
 
-        // If we are in the interaction port for the FT, then our starting pose and calculations are all done wrt FT
-        // if(interaction_port_is_ft){ 
-        //     interaction_pose = ft_frame;
-        // }
-        // else{
-        //     interaction_pose = current_pose;
-        // }
-        // cout << "Press enter to continue";
-        // cin >> temple;
+
 
         // only if we are below the number of interpolation steps do we want to adjust the attractor, otherwise we will just check the goal checks
         if(loops_so_far < n_steps){
@@ -693,6 +690,8 @@ int main(int argc, char** argv) {
             virtual_attractor.pose.position.x = virtual_attractor.pose.position.x + delta_trans_vec.x;
             virtual_attractor.pose.position.y = virtual_attractor.pose.position.y + delta_trans_vec.y;
             virtual_attractor.pose.position.z = virtual_attractor.pose.position.z + delta_trans_vec.z;
+
+            
 
             // Advance rotation interpolation
             theta_interp = (loops_so_far + 1) * dtheta; //! This is wrong, needs to be transformed properly (maybe be based off of start, or change the initial TF)

@@ -1,5 +1,5 @@
 // Force Moment Accommodation (FMA)
-// Matthew Haberbusch and Surag Balajepalli 
+// Rahul Pokharna and Matthew Haberbusch and Surag Balajepalli 
 // Last updated 6/19/19
 // 
 // All ROS-specific code labeled with "ROS:" comments
