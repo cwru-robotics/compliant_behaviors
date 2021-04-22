@@ -292,6 +292,8 @@ int main(int argc, char** argv) {
     cout<<"Maximum Z torque: "<<torque_z_max<<"\tMax at time: "<<torque_z_max_time<<endl;
     cout<<"Minimum Z torque: "<<torque_z_min<<"\tMin at time: "<<torque_z_min_time<<endl;
 
+    //TODO add in starting and ending wrench, magnitude or whatever
+
 
     // Print estimated time
     

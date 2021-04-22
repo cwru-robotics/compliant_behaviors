@@ -393,7 +393,15 @@ bool setCurrentFrameServiceCallback(irb120_accomodation_control::set_current_fra
 		k_combined.bottomRightCorner(3,3) = k_rot.asDiagonal();
 		b_des_vec << 4000,4000,4000,200,200,200;
 		b_des_inv = b_des_vec.asDiagonal().inverse();
-
+	}
+	else if (!strcmp(task_name.c_str(), "Deep_Drive")){
+		current_frame = "Task";
+		k_trans << 1500,1500,1000; // softer in Z, but not too soft
+		k_rot << 40,40,30; // softer in Z so that it will rotate until it locks in place, but not too soft that it doesnt rotate. We want to pull down and rotate until we are aligned. Maybe reduce wrench limits? 
+		k_combined.topLeftCorner(3,3) = k_trans.asDiagonal();
+		k_combined.bottomRightCorner(3,3) = k_rot.asDiagonal();
+		b_des_vec << 4000,4000,4000,200,200,200;
+		b_des_inv = b_des_vec.asDiagonal().inverse();
 	}
 	else {
 		cout<< "Failed"<<endl<<"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"<<endl;
@@ -513,7 +521,6 @@ int main(int argc, char **argv) {
 	cout << "After irb120 fkik init"<<endl; 
 
 	// Declare matricies and vectors
-	Eigen::MatrixXd robot_inertia_matrix(6,6); // Unused
 	Eigen::VectorXd current_end_effector_pose(6);
 	Eigen::VectorXd sensor_pose(6);
 	Eigen::VectorXd wrench_with_respect_to_robot(6);
@@ -570,18 +577,6 @@ int main(int argc, char **argv) {
 	last_desired_joint_state_.position.resize(6);
 	last_desired_joint_state_.velocity.resize(6);
 	
-	// Define inertia matrix 
-	robot_inertia_matrix<<1,0,0,0,0,0,
-						  0,1,0,0,0,0,
-						  0,0,1,0,0,0,
-						  0,0,0,1,0,0,
-						  0,0,0,0,1,0,
-						  0,0,0,0,0,1;
-	robot_inertia_matrix *= 100;
-
-	// MATH: Create inverted inertia matrix
-	Eigen::FullPivLU<Eigen::MatrixXd> lu_inertia_mat(robot_inertia_matrix);
-	Eigen::MatrixXd inertia_matrix_inverted = lu_inertia_mat.inverse();
 
 	// TODO CHANGE FOR ROBOT AGNOSTIC
 	// Declare our sensor's static transform 
@@ -617,11 +612,11 @@ int main(int argc, char **argv) {
 	task_frame_with_respect_to_robot_ = sensor_with_respect_to_robot; //! change to tool_with_respect_to_robot_ if IP is tool tip
 	sensor_with_respect_to_current = task_frame_with_respect_to_robot_.inverse() * sensor_with_respect_to_robot; // check if this math is correct
 
-	//TODO update the values to be the tool stowage frame from a working task frame
 	// Define default/starting transform for the tool stowage frame, set from values obtained with a working task frame
-	stowage_frame_with_respect_to_robot_.translation() = Eigen::Vector3d(0.949345922741,0.00167035566543,0.741465747577);
-	Eigen::Quaterniond rot(0.49080197581,0.492946916981,0.50987648389,0.50610545221);
+	stowage_frame_with_respect_to_robot_.translation() = Eigen::Vector3d(0.305318775107,0.00417424672753,0.702955076039);
+	Eigen::Quaterniond rot(0.494044627121,0.484363114784,0.513944396825,0.507122703516);
 	stowage_frame_with_respect_to_robot_.linear() = rot.toRotationMatrix();
+
 
 	// Define 
 	Eigen::VectorXd initial_end_effector_pose = Eigen::VectorXd::Zero(6); 
@@ -969,7 +964,12 @@ int main(int argc, char **argv) {
 		for(int i = 0; i < 6; i++) desired_joint_state.velocity[i] = std::round(desired_joint_velocity(i) * 1000) /1000;
 
 		// Publish desired jointstate
-		arm_publisher.publish(desired_joint_state);
+		//! Use freeze mode to not publish this if we are frozen 
+		if(!freeze_mode){
+			arm_publisher.publish(desired_joint_state);
+			cout<<"Commanding joint pose"<<endl;
+		}
+			
 		last_desired_joint_state_ = desired_joint_state;
 
 		// Debug Output

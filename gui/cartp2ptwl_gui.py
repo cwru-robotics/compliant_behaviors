@@ -14,7 +14,7 @@ import subprocess # subprocess.Popen(cmd) to multithread the mtric thing
 delay_len = 0
 
 # List of options for preset values, to be associated with related values in each function
-options = ['Peg', 'Bottle_Cap', 'Cutting', 'Tool', 'Task', 'Stowage']
+options = ['Peg', 'Bottle_Cap', 'Cutting', 'Tool', 'Task', 'Stowage', "Deep_Drive"]
 selected_option = 4
 
 metric_cmd = "rosrun behavior_algorithms data_collect"
@@ -31,6 +31,19 @@ class Application(tk.Frame):
         # self.pack()
 
         self.create_widgets()
+
+
+    # Here we run the command to send
+    def call_cmd(self, cmd):
+        print(cmd)
+
+        time.sleep(delay_len)
+        # add subprocess for metrics here ? 
+        metric = subprocess.Popen(metric_cmd, shell=True)
+        os.system(cmd)
+        metric.kill() # Does not seem to work, need to test this
+        os.system("rosnode kill data_collect")
+        time.sleep(delay_len)
 
     def create_widgets(self):
 
@@ -551,9 +564,7 @@ class Application(tk.Frame):
 
         print(command)
 
-        time.sleep(delay_len)
-        os.system(command)  
-        time.sleep(delay_len)
+        self.call_cmd(command)
 
     def restore_wrench_eq_preset_1(self):
 
@@ -589,9 +600,7 @@ class Application(tk.Frame):
 
         print(command)
 
-        time.sleep(delay_len)
-        os.system(command)  
-        time.sleep(delay_len)
+        self.call_cmd(command)
 
     def restore_wrench_eq_preset_2(self):
 
@@ -628,9 +637,7 @@ class Application(tk.Frame):
 
         print(command)
         
-        time.sleep(delay_len)
-        os.system(command)  
-        time.sleep(delay_len)
+        self.call_cmd(command)
 
     
     # New example 
@@ -683,16 +690,8 @@ class Application(tk.Frame):
         command = \
             'rosrun behavior_algorithms cartp2ptwl _trans_x:={0} _trans_y:={1} _trans_z:={2} _rot_x:={3} _rot_y:={4} _rot_z:={5} _param_set:={6} _bumpless:={7}'.format(x,y,z,rot_x,rot_y,rot_z,self.parameter_set.get(),bump)
         
-
         print(command)
-
-        time.sleep(delay_len)
-        # add subprocess for metrics here ? 
-        metric = subprocess.Popen(metric_cmd, shell=True)
-        os.system(command)
-        metric.kill() # Does not seem to work, need to test this
-        os.system("rosnode kill data_collect")
-        time.sleep(delay_len)
+        self.call_cmd(command)
         
     
     def joint_cmd_fnc(self):
@@ -741,39 +740,27 @@ class Application(tk.Frame):
 
         print(command)
 
-        time.sleep(delay_len)
-        os.system(command)
-        time.sleep(delay_len)
+        self.call_cmd(command)
         
     # Preset to joint command to the home pose above tool stowage
     def simple_joint_commander_pre_home_pose(self):
-        time.sleep(delay_len)
-        os.system('rosrun irb120_accomodation_control simple_joint_commander _joint_1:=0 _joint_2:=-48 _joint_3:=16 _joint_4:=0 _joint_5:=30 _joint_6:=0')
-        time.sleep(delay_len)
+        self.call_cmd('rosrun irb120_accomodation_control simple_joint_commander _joint_1:=0 _joint_2:=-48 _joint_3:=16 _joint_4:=0 _joint_5:=30 _joint_6:=0')
 
     # Preset to joint command to the pull-back position (above the tool stowage)
     def simple_joint_commander_pre_pull_back_pose(self):
-        time.sleep(delay_len)
-        os.system('rosrun irb120_accomodation_control simple_joint_commander _joint_1:=0 _joint_2:=-57 _joint_3:=25 _joint_4:=0 _joint_5:=30 _joint_6:=0')
-        time.sleep(delay_len)
+        self.call_cmd('rosrun irb120_accomodation_control simple_joint_commander _joint_1:=0 _joint_2:=-57 _joint_3:=25 _joint_4:=0 _joint_5:=30 _joint_6:=0')
 
     # Preset to joint command to the rotate-pose
     def simple_joint_commander_pre_rotate_pose(self):
-        time.sleep(delay_len)
-        os.system('rosrun irb120_accomodation_control simple_joint_commander _joint_1:=0 _joint_2:=-57 _joint_3:=25 _joint_4:=0 _joint_5:=-60 _joint_6:=0')
-        time.sleep(delay_len)
+        self.call_cmd('rosrun irb120_accomodation_control simple_joint_commander _joint_1:=0 _joint_2:=-57 _joint_3:=25 _joint_4:=0 _joint_5:=-60 _joint_6:=0')
 
     # Preset to joint command to the QD position
     def simple_joint_commander_pre_qd_pose(self):
-        time.sleep(delay_len)
-        os.system('rosrun irb120_accomodation_control simple_joint_commander _joint_1:=0 _joint_2:=-37 _joint_3:=5 _joint_4:=0 _joint_5:=-60 _joint_6:=0')
-        time.sleep(delay_len)
+        self.call_cmd('rosrun irb120_accomodation_control simple_joint_commander _joint_1:=0 _joint_2:=-37 _joint_3:=5 _joint_4:=0 _joint_5:=-60 _joint_6:=0')
 
     # Preset to joint command to the zero (calibrated) position
     def simple_joint_commander_pre_zero_pose(self):
-        time.sleep(delay_len)
-        os.system('rosrun irb120_accomodation_control simple_joint_commander _joint_1:=0 _joint_2:=0 _joint_3:=0 _joint_4:=0 _joint_5:=0 _joint_6:=0')
-        time.sleep(delay_len)
+        self.call_cmd('rosrun irb120_accomodation_control simple_joint_commander _joint_1:=0 _joint_2:=0 _joint_3:=0 _joint_4:=0 _joint_5:=0 _joint_6:=0')
         
     # Preset to joint commands to run in a set order
     def simple_joint_commander_pre_transition(self):
@@ -805,21 +792,13 @@ class Application(tk.Frame):
 
         # print(command)
 
-        time.sleep(delay_len)
-        os.system(command)  
-        time.sleep(delay_len)
+        self.call_cmd(command)
 
     def torsional_wiggle_pull_pre_1(self):
-        time.sleep(delay_len)
-        os.system('rosrun behavior_algorithms current_torsional_wiggle_pull _wiggle_time:=3'
-                  )  
-        time.sleep(delay_len)
+        self.call_cmd('rosrun behavior_algorithms current_torsional_wiggle_pull _wiggle_time:=3')
 
     def torsional_wiggle_pull_pre_2(self):
-        time.sleep(delay_len)
-        os.system('rosrun behavior_algorithms current_torsional_wiggle_pull _wiggle_time:=5'
-                  )  
-        time.sleep(delay_len)
+        self.call_cmd('rosrun behavior_algorithms current_torsional_wiggle_pull _wiggle_time:=5')
 
     # rosrun behavior_algorithms torsional_wiggle_push _wiggle_time:=6
 
@@ -834,21 +813,13 @@ class Application(tk.Frame):
 
         # print(command)
 
-        time.sleep(delay_len)
-        os.system(command)  
-        time.sleep(delay_len)
+        self.call_cmd(command)
 
     def torsional_wiggle_push_pre_1(self):
-        time.sleep(delay_len)
-        os.system('rosrun behavior_algorithms current_torsional_wiggle_push _wiggle_time:=3'
-                  )  
-        time.sleep(delay_len)
+        self.call_cmd('rosrun behavior_algorithms current_torsional_wiggle_push _wiggle_time:=3')
 
     def torsional_wiggle_push_pre_2(self):
-        time.sleep(delay_len)
-        os.system('rosrun behavior_algorithms current_torsional_wiggle_push _wiggle_time:=5'
-                  )  
-        time.sleep(delay_len)
+        self.call_cmd('rosrun behavior_algorithms current_torsional_wiggle_push _wiggle_time:=5')
 
     # rosrun behavior_algorithms translational_wiggle_pull _wiggle_time:=6
 
@@ -863,21 +834,13 @@ class Application(tk.Frame):
 
         # print(command)
 
-        time.sleep(delay_len)
-        os.system(command)  
-        time.sleep(delay_len)
+        self.call_cmd(command)
 
     def translational_wiggle_pull_pre_1(self):
-        time.sleep(delay_len)
-        os.system('rosrun behavior_algorithms current_translational_wiggle_pull _wiggle_time:=3'
-                  )  
-        time.sleep(delay_len)
+        self.call_cmd('rosrun behavior_algorithms current_translational_wiggle_pull _wiggle_time:=3')
 
     def translational_wiggle_pull_pre_2(self):
-        time.sleep(delay_len)
-        os.system('rosrun behavior_algorithms current_translational_wiggle_pull _wiggle_time:=5'
-                  )  
-        time.sleep(delay_len)
+        self.call_cmd('rosrun behavior_algorithms current_translational_wiggle_pull _wiggle_time:=5')
 
     # rosrun behavior_algorithms translational_wiggle_push _wiggle_time:=6
 
@@ -892,21 +855,13 @@ class Application(tk.Frame):
 
         # print(command)
 
-        time.sleep(delay_len)
-        os.system(command)  
-        time.sleep(delay_len)
+        self.call_cmd(command)
 
     def translational_wiggle_push_pre_1(self):
-        time.sleep(delay_len)
-        os.system('rosrun behavior_algorithms current_translational_wiggle_push _wiggle_time:=3'
-                  )  
-        time.sleep(delay_len)
+        self.call_cmd('rosrun behavior_algorithms current_translational_wiggle_push _wiggle_time:=3')
 
     def translational_wiggle_push_pre_2(self):
-        time.sleep(delay_len)
-        os.system('rosrun behavior_algorithms current_translational_wiggle_push _wiggle_time:=5'
-                  )  
-        time.sleep(delay_len)
+        self.call_cmd('rosrun behavior_algorithms current_translational_wiggle_push _wiggle_time:=5')
 
     def parse_entry(self):
         # print("output from text box")

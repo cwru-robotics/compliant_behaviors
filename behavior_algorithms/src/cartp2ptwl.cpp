@@ -324,7 +324,7 @@ int main(int argc, char** argv) {
         // set the other values here
         FORCE_THRESHOLD = 4;
         TORQUE_THRESHOLD = 2;
-        KEEP_CUTTING_DISTANCE = 0.00075; // was 0.001
+        KEEP_CUTTING_DISTANCE = 0.001; // was 0.001
         SETTLE_TIME = 5;
 
         stowage = true; // stowage true, task false?
@@ -347,7 +347,7 @@ int main(int argc, char** argv) {
     else if (!strcmp(param_set.c_str(), "Stowage")){
         // set the other values here
         FORCE_THRESHOLD = 25;
-        TORQUE_THRESHOLD = 4;
+        TORQUE_THRESHOLD = 2.5;
         KEEP_CUTTING_DISTANCE = 0; 
         SETTLE_TIME = 5;
 
@@ -356,6 +356,21 @@ int main(int argc, char** argv) {
         task = false;
         ROS_INFO("Params set for STOWAGE");
     }
+    else if (!strcmp(param_set.c_str(), "Deep_Drive")){
+        // set the other values here
+        FORCE_THRESHOLD = 30;
+        TORQUE_THRESHOLD = 2; // lower this so we turn slow and stop 
+        KEEP_CUTTING_DISTANCE = 0; 
+        SETTLE_TIME = 5;
+        MAX_ANG = 0.02; // this is reduced to slowly turn onto the grooves
+
+
+        stowage = false;
+        cutting = false;
+        task = true;
+        ROS_INFO("Params set for STOWAGE");
+    }
+
     //TODO ADD PARAM FOR TOOL EXCHANGE
     ROS_INFO("after storing params");
 
@@ -441,7 +456,7 @@ int main(int argc, char** argv) {
 
     //TODO Task is set to false, need to update to use task frame with cartp2p, other values are also removed here
     // task = false;
-    KEEP_CUTTING_DISTANCE = 0;
+    // KEEP_CUTTING_DISTANCE = 0;
 
     // Update to accept input of goal pose here, and then add the deltas 
     geometry_msgs::Vector3 delta_trans_vec;
@@ -504,20 +519,7 @@ int main(int argc, char** argv) {
     // Initial R_interp is the starting rotation, each delta added:
     R_interp = R_start;
 
-    //! check if in task frame or in tool frame:
-    // if(task){
-    //     // Calculate the new goal rotation matrix in th
-    //     goal_pose_wrt_task = TO_DESTINATION_ROTATION_MATRIX * tool_in_task;
-    //     R_end = task_frame_rot * goal_pose_wrt_task; 
-    // }
-    // else if(stowage){
-    //     goal_pose_wrt_stowage = TO_DESTINATION_ROTATION_MATRIX * tool_in_stowage;
-    //     R_end = stowage_frame_rot * goal_pose_wrt_stowage; 
-    // }
-    // else{
-    //     // Take the start rotation, apply the desired rotation to calculate the final rotation matrix in tool frame
-    //     R_end = R_start * TO_DESTINATION_ROTATION_MATRIX; // I feel this math may need to be flipped, but it seems to check based on OTEL (rotation in tool frame)
-    // }
+   
 
     // Calculate the ending rotation matrix based on the current orientation times the desired rotation
     R_end = R_start * TO_DESTINATION_ROTATION_MATRIX;
@@ -620,9 +622,10 @@ int main(int argc, char** argv) {
     virtual_attractor.header.frame_id = "current_frame";
 
     //! In in cutting, pull down to keep contact
-    if(cutting){
-        virtual_attractor.pose.position.z += KEEP_CUTTING_DISTANCE;
-    }
+    if(cutting){ //TODO fix this
+        cout<<"Adding initial pull down distance"<<endl;
+        virtual_attractor.pose.position.z = virtual_attractor.pose.position.z + KEEP_CUTTING_DISTANCE;
+    } //!FIX THIS
 
 
     // spin, while we don't have data

@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 2.8.3)
 project(behavior_algorithms)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
-# add_compile_options(-std=c++11)
+add_compile_options(-std=c++11)
 
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
@@ -166,6 +166,7 @@ add_executable(current_translational_wiggle_push src/current_translational_wiggl
 add_executable(current_torsional_wiggle_push src/current_torsional_wiggle_push.cpp)
 add_executable(current_translational_wiggle_pull src/current_translational_wiggle_pull.cpp)
 add_executable(current_torsional_wiggle_pull src/current_torsional_wiggle_pull.cpp)
+add_executable(stowage_state_machine src/stowage_state_machine.cpp)
 add_executable(data_collect src/data_collect.cpp)
 
 ## Rename C++ executable without prefix
@@ -198,6 +199,7 @@ add_dependencies(compliant_cutting ${catkin_EXPORTED_TARGETS})
 add_dependencies(restore_wrench_eq ${catkin_EXPORTED_TARGETS})
 add_dependencies(force_moment_accommodation ${catkin_EXPORTED_TARGETS})
 add_dependencies(force_moment_accommodation_interaction_port ${catkin_EXPORTED_TARGETS})
+add_dependencies(stowage_state_machine ${catkin_EXPORTED_TARGETS})
 add_dependencies(data_collect ${catkin_EXPORTED_TARGETS})
 
 
@@ -290,6 +292,9 @@ target_link_libraries(quat_to_euler_ang_converter
   ${catkin_LIBRARIES}
  )
   target_link_libraries(data_collect
+  ${catkin_LIBRARIES}
+ )
+  target_link_libraries(stowage_state_machine
   ${catkin_LIBRARIES}
  )
 #############
