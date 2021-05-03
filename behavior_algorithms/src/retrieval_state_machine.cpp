@@ -10,37 +10,29 @@
 // States being used:
 // d. Soft E-stop: if wrench_lim,
 // 0. Initialization: check initial pose
-// 1. Move down into top section
-// 2. Rotate to unlock bay
-// 3. Move down to bottom out the tool (check orientation as well as Z pose)
-// 4. Rotate to lock the bay
-// 5. Close the gripper to release the tool, then pull away
+// 1. Move down into retrieving pose (the gripper has to be inside the tool's hole, bottomed out)
+// 2. Grab tool: toggle compliance, open gripper, RWE
+// 3. Rotate to unlock bay
+// 4. Move upward 6cm (tool completely out of lock)
+// 5. Rotate back/ Homing.
 
 //TODO
-/*
-* (mostly done) Use current frame and interaction port
-* (mostly done) Flesh out the logic, follow state machine diagram from before
-* Add specific variables and actual data with hooks
-* Add a progress check for each state, to detemine what to do in the else statement
-* Call nodes to move the arm, then check status (system call)
-* (postponed) Change nodes to be services instead 
-* Add in condition checking and edge cases
-* We can just set up function calls for things that are reused, but adjust the decision making in the main node
-
-* Get appropriate parameters and update the stowage bay location
-*/
+/**
+ * 
+ */
 
 #include <ros/ros.h>
 #include <geometry_msgs/Pose.h>
 #include <geometry_msgs/PoseStamped.h>
-#include <std_msgs/Float64.h>
-#include <std_msgs/Float64MultiArray.h>
+#include <std_msgs/Int8.h>
 // #include <string.h>
 #include <string>
 #include <geometry_msgs/Wrench.h>
 #include <Eigen/QR>
 #include <Eigen/Dense>
 #include <cmath>
+#include <irb120_accomodation_control/freeze_service.h>
+
 //#include <iostream.h>
 using namespace std;
 
@@ -50,6 +42,22 @@ geometry_msgs::Wrench ft_current_frame;
 
 Eigen::Quaterniond curr_orientation;
 Eigen::Affine3d curr_affine;
+
+ros::ServiceClient freeze_client;
+irb120_accomodation_control::freeze_service freeze_srv;
+
+// freeze service information
+std_msgs::Int8 freeze_mode_status;
+bool freeze_mode; 
+bool freeze_updated = false;
+
+void freeze_status_callback(const std_msgs::Int8& freeze_status_msg) {
+    freeze_updated = true;
+    freeze_mode_status = freeze_status_msg;
+    // cout<<"FREEZE STATUS: "<<freeze_mode_status<<endl;
+    if(freeze_mode_status.data == 1) freeze_mode = true;
+    else freeze_mode = false;
+}
 
 // Helper function to calculate
 double ang_between_vecs(Eigen::Vector3d a, Eigen::Vector3d b)
@@ -89,6 +97,39 @@ bool pos_check(Eigen::Vector3d target_pos, double tol_x = 0.002, double tol_y = 
     return (abs(curr_position.x() - target_pos.x()) < tol_x) & (abs(curr_position.y() - target_pos.y()) < tol_y) && (abs(curr_position.z() - target_pos.z()) < tol_z);
 }
 
+void unfreeze(ros::Rate naptime)
+{
+    // spin, while we don't have data
+    while(!freeze_updated){
+        ros::spinOnce();
+        naptime.sleep();
+        // cout<<"spinning for data"<<endl;
+    }
+    // Check here after a spin, and unfreeze if it is frozen 
+    while(freeze_mode_status.data == 1 && freeze_mode){
+        
+        if(freeze_updated && freeze_client.call(freeze_srv)){
+            // success
+            // cout<<"Called freeze mode service succesfully"<<endl;
+        }
+        else{
+            // failed to call service
+            // ROS_ERROR("Failed to call freeze service");
+        }
+        ros::spinOnce();
+        naptime.sleep();
+        freeze_updated = false;
+    }
+    
+    // spin, while we don't have data
+    while(!freeze_updated){
+        ros::spinOnce();
+        naptime.sleep();
+        
+        // cout<<"spinning for data"<<endl;
+    }   
+}
+
 void cart_state_Cb(const geometry_msgs::PoseStamped &cart_pos)
 {
     // store curr_pose
@@ -116,7 +157,7 @@ void call_ptwl_fnc(double trans_x, double trans_y, double trans_z, double rot_x,
     system(cmd.c_str());
 }
 // integer flags, 0 to alleviate that load, 1 to preserve it in that axis
-void call_rwe_fnc(int trans_x, int trans_y, int trans_z, int rot_x, int rot_y, int rot_z)
+void call_rwe_fnc(int trans_x=0, int trans_y=0, int trans_z=0, int rot_x=0, int rot_y=0, int rot_z=0)
 {
     string cmd = "rosrun behavior_algorithms force_moment_accommodation_interaction_port _trans_x:=" + to_string(trans_x) + " _trans_y:=" + to_string(trans_y) + " _trans_z:=" + to_string(trans_z) +
                  " _rot_x:=" + to_string(rot_x) + " _rot_y:=" + to_string(rot_y) + " _rot_z:=" + to_string(rot_z) + " _param_set:=Stowage _run_time:=10";
@@ -128,14 +169,18 @@ void call_joint_fnc(double joint_1 = 0, double joint_2 = -48, double joint_3 = 1
     system(cmd.c_str());
 }
 
+
 int main(int argc, char **argv)
 {
     ros::init(argc, argv, "stowage_state_machine");
     ros::NodeHandle nh;
     ros::Subscriber cart_state_sub = nh.subscribe("interaction_port_frame", 1, cart_state_Cb); //! make sure this is accurate
     ros::Subscriber ft_sub = nh.subscribe("current_frame_ft_wrench", 1, ft_Cb);
+    // subscriber for freeze mode status (used in loop cond)
+    ros::Subscriber freeze_mode_sub = nh.subscribe("freeze_mode_topic",1,freeze_status_callback);
 
-    // We need
+    freeze_client = nh.serviceClient<irb120_accomodation_control::freeze_service>("freeze_service");
+
 
     //? Parameters for each state check
     /*
@@ -171,10 +216,12 @@ int main(int argc, char **argv)
     // We do not plan to run live code here,
     ros::Rate naptime(1 / dt_);
 
-
-    // Set frame as stowage and then zero all forces before starting
     system("rosservice call /set_frame_service \"task_name: 'Stowage'\" ");
     system("rosservice call /robotiq_ft_sensor_acc \"command_id: 8\"");
+    for(int i = 0; i < 10; i++){
+        ros::spinOnce();
+        naptime.sleep();
+    }
 
     while (ros::ok() && state_machine_OK)
     {
@@ -188,6 +235,7 @@ int main(int argc, char **argv)
         case 0:
             ROS_INFO("State 0: Stationary check");
 
+            // first make sure that the current frame is the stowage frame:
             for(int i = 0; i < 10; i++){
                 ros::spinOnce();
                 naptime.sleep();
@@ -198,6 +246,7 @@ int main(int argc, char **argv)
             if (pos_check(Eigen::Vector3d(0, 0, approach_z_height), 0.006, 0.006, 0.005) && orient_check(Eigen::Matrix3d::Identity()))
             { 
                 state = 1;
+                
             }
             else
             {
@@ -215,7 +264,7 @@ int main(int argc, char **argv)
             ROS_INFO("Loop ctr = %d", loops_in_current_state);
 
             // based on current frame, known z height of the stowage bay, also orientation check (make sure we are not tilted drastically)
-            if (contact_force_threshold < abs(ft_current_frame.force.z) && pos_check(Eigen::Vector3d(0, 0, upper_stop_z_height), 0.005, 0.005, 0.005) && orient_check(Eigen::Matrix3d::Identity(), 0.2, 0.2))
+            if (contact_force_threshold < abs(ft_current_frame.force.z) && pos_check(Eigen::Vector3d(0, 0, lower_stop_z_height), 0.01, 0.01, 0.006) && orient_check(Eigen::Matrix3d::Identity(), 0.2, 0.2))
             {
                 state = 2;
                 loops_in_current_state = 0;
@@ -226,7 +275,7 @@ int main(int argc, char **argv)
             }
 
             // If we have been stuck for 5 loops, pull back, restart
-            if (loops_in_current_state > 5)
+            if (loops_in_current_state > 6)
             {
                 // can call an rwe in case we are jammed
                 call_rwe_fnc(0, 0, 0, 0, 0, 0);
@@ -259,18 +308,35 @@ int main(int argc, char **argv)
 
             break;
 
-        // rotate unlock
+        // Grab tool: compliance on, open gripper, RWE
         case 2:
-            ROS_INFO("State 2: Unlock the Stowage Bay");
+            ROS_INFO("State 2: Grabbing the tool");
+
+            ROS_INFO("Turn on compliance");
+            unfreeze(naptime);
+
+            ROS_INFO("Open Gripper while in compliance");
+            system("rosservice call /grip '[{id: 1, state: false}, {id: 2, state: true}]'");
+            
+            ROS_INFO("RWEEEEEEEEEEEEEEE");
+            call_rwe_fnc();
+
+            state = 3;
+
+            break;
+
+        // rotate unlock
+        case 3:
+            ROS_INFO("State 3: Unlock the Stowage Bay");
             ROS_INFO("Loop ctr = %d", loops_in_current_state);
 
-            if (contact_torque_threshold < abs(ft_current_frame.torque.z) && pos_check(Eigen::Vector3d(0, 0, upper_stop_z_height), 0.015, 0.015, 0.015) && orient_check(unlock_orientation))
+            if (contact_torque_threshold < abs(ft_current_frame.torque.z) && pos_check(Eigen::Vector3d(0, 0, lower_stop_z_height), 0.015, 0.015, 0.015) && orient_check(unlock_orientation))
             {
-                state = 3;
+                state = 4;
                 loops_in_current_state = 0;
 
-                cout << "Transitioning to state 3." << endl;
-                ROS_INFO("Transitioning to state 3.");
+                cout << "Transitioning to state 4." << endl;
+                ROS_INFO("Transitioning to state 4.");
                 break;
             }
 
@@ -279,12 +345,10 @@ int main(int argc, char **argv)
             { 
                 // can call an rwe in case we are jammed
                 call_rwe_fnc(0, 0, 0, 0, 0, 0);
-                // pull back and clear of the bay
-                call_ptwl_fnc(0, 0, -0.05, 0, 0, 0);
-                state = 0; // can restart
+                state = -1; // stop, exit the state machine
                 loops_in_current_state = 0;
-                cout << "Restarting state machine from state 2" << endl;
-                ROS_INFO("Restarting state machine from state 2");
+                cout << "Unlock Error!!!! Please check the stowage bay" << endl;
+                ROS_INFO("Unlock Error!!!! Please check the stowage bay");
                 break;
             }
             // if we have high forces, still too high, and maybe misaligned, then run RWE
@@ -302,106 +366,34 @@ int main(int argc, char **argv)
 
             break;
 
-        // bottom out into stowage bay
-        case 3:
-            ROS_INFO("State 3: Bottom out into stowage bay");
-            ROS_INFO("Loop ctr = %d", loops_in_current_state);
-
-            if (contact_force_threshold < abs(ft_current_frame.force.z) && pos_check(Eigen::Vector3d(0, 0, lower_stop_z_height), 0.005, 0.005, 0.005) && orient_check(unlock_orientation))
-            {
-                state = 4;
-                loops_in_current_state = 0;
-
-                cout << "Transitioning to state 4." << endl;
-                ROS_INFO("Transitioning to state 4.");
-                break;
-            }
-
-            // If we have been stuck for 5 loops, terminate the state machine and stop where we are
-            if (loops_in_current_state > 5)
-            {
-                state = -1;
-                loops_in_current_state = 0;
-                cout << "Exiting state machine from state 3" << endl;
-                ROS_INFO("Exiting state machine from state 3");
-                break;
-            }
-            // if we have high forces, still too high, and maybe misaligned, then run RWE
-            else if (loops_in_current_state > 2 && (!orient_check(Eigen::Matrix3d::Identity()) || (force_limit < abs(ft_current_frame.force.z))))
-            {
-                call_rwe_fnc(0, 0, 1, 0, 0, 0);
-            }
-            // Move down normally otherwise
-            else
-            {
-                call_ptwl_fnc(0, 0, 0.03, 0, 0, 0);
-            }
-
-            loops_in_current_state += 1;
-
-            break;
 
         // rotate to lock bay
         case 4:
-            ROS_INFO("State 4: Lock the Stowage Bay");
+            ROS_INFO("State 4: Pulling out the tool");
             ROS_INFO("Loop ctr = %d", loops_in_current_state);
+            
+            // pull out
+            call_ptwl_fnc(0, 0, -0.06, 0, 0, 0);
 
-            // based on current frame, known z height of the stowage bay, also orientation check (make sure we are not tilted drastically)
-            if (contact_torque_threshold < abs(ft_current_frame.torque.z) && pos_check(Eigen::Vector3d(0, 0, lower_stop_z_height), 0.005, 0.005, 0.005) && orient_check(Eigen::Matrix3d::Identity()))
+            // Check if we have cleared the stowage bay, then give succes outpt
+            if (contact_torque_threshold < abs(ft_current_frame.torque.z) && curr_affine.translation().z() <= approach_z_height)
             {
-                state = 5;
+                state = -1;
                 loops_in_current_state = 0;
                 cout << "Successfully stowed tool in bay. Transitioning to state 5" << endl;
                 ROS_INFO("Successfully stowed tool in bay. Transitioning to state 5");
                 break;
             }
 
-            // If we have been stuck for 5 loops, pull back, restart
-            if (loops_in_current_state > 5)
-            {
-                state = -1;
-                loops_in_current_state = 0;
-                cout << "Exiting state machine from state 4" << endl;
-                ROS_INFO("Exiting state machine from state 4");
-                break;
-            }
-            // if we have high forces, still too high, and maybe misaligned, then run RWE
-            else if (loops_in_current_state > 2 && (!orient_check(Eigen::Matrix3d::Identity()) || (torque_limit < abs(ft_current_frame.torque.z))))
-            {
-                call_rwe_fnc(0, 0, 0, 0, 0, 0); //relieve ALL loads
-            }
-            // Move down normally otherwise
-            else
-            {
-                call_ptwl_fnc(0, 0, 0, 0, 0, 0.2);
-            }
-
-            loops_in_current_state += 1;
-
-            break;
-
-        // Leave tool in stowage bay
-        case 5:
-            ROS_INFO("State 5: Close the gripper and move up and away");
-            ROS_INFO("Loop ctr = %d", loops_in_current_state);
-
-            // first close the gripper to release the tool
-            system("rosservice call /grip '[{id: 1, state: true}, {id: 2, state: false}]'");
-            
-            
-            // move up and out of the stowage area
-            call_ptwl_fnc(0, 0, -0.06, 0, 0, 0);
-
-            // make sure we are high enough to be clear of the stowage bay
-            // if(curr_pose.pose.position.z < approach_z_height || loops_in_current_state > 2){ // maybe want to make sure we are still low enough, z height, and also not tilted/orientation check
+            // if we have not succeeded, give failure output
             state = -1;
-
-            cout << "Exiting state machine from state 5. Arm is clear of bay" << endl;
-            ROS_INFO("Exiting state machine from state 5. Arm is clear of bay");
-            // }
-            // loops_in_current_state++;
+            loops_in_current_state = 0;
+            cout << "Exiting state machine from state 4" << endl;
+            ROS_INFO("Exiting state machine from state 4");
+            
 
             break;
+
         default:
             // wrap up the program, then exit the loop
             state_machine_OK = false;

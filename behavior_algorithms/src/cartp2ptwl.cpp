@@ -32,8 +32,7 @@ geometry_msgs::Wrench ft_in_robot_frame; //TODO use for bumpless
 
 geometry_msgs::PoseStamped task_frame;
 geometry_msgs::PoseStamped stowage_frame;
-geometry_msgs::Wrench ft_in_sensor_frame; 
-// Eigen::VectorXd ft_in_sensor_frame = Eigen::VectorXd::Zero(6);
+geometry_msgs::Wrench ft_in_current_frame;
 
 geometry_msgs::Vector3 tool_vector_x;
 geometry_msgs::Vector3 tool_vector_y;
@@ -64,8 +63,8 @@ void ft_callback(const geometry_msgs::Wrench& ft_values) {
 }
 
 // For use for exit wrench conditions
-void ft_sensor_callback(const geometry_msgs::WrenchStamped &ft_values){
-    ft_in_sensor_frame = ft_values.wrench;
+void ft_sensor_callback(const geometry_msgs::Wrench &ft_values){
+    ft_in_current_frame = ft_values;
 
     /* To add this for smoother values? 
     wrench_body_coords_(0) = std::round(ft_values.wrench.force.x * 10) / 10;
@@ -149,6 +148,22 @@ void freeze_status_callback(const std_msgs::Int8& freeze_status_msg) {
     else freeze_mode = false;
 }
 
+// MATH: Function converts a vector of euler angles into a rotation matrix
+Eigen::Matrix3d rotation_matrix_from_vector_of_angles(Eigen::Vector3d angle_vector) {
+	Eigen::Matrix3d rotation_matrix_from_vector_of_angles;
+	double angle = angle_vector.norm(); // Calculate the length of the vector (the angle)
+    cout<<"Angle: "<<angle<<endl;
+    if(angle == 0 || angle == -0){
+        rotation_matrix_from_vector_of_angles<<1,0,0,0,1,0,0,0,1;
+        return rotation_matrix_from_vector_of_angles;
+    }
+	Eigen::Vector3d axis = angle_vector / angle; // Divide out this length to get us the unit length vector for the axis of rotation
+	Eigen::AngleAxisd angle_axis(angle, axis);
+	rotation_matrix_from_vector_of_angles = angle_axis.toRotationMatrix();
+    cout<<"Mat from vec: "<<endl<<rotation_matrix_from_vector_of_angles<<endl;
+	return rotation_matrix_from_vector_of_angles;
+}
+
 
 // ROS: main program
 int main(int argc, char** argv) {
@@ -163,7 +178,7 @@ int main(int argc, char** argv) {
     //TODO Subscribe to current bumpless start, and just use that as the start pose? or set to be FT frame if bumpless is false
     ros::Subscriber cartesian_state_subscriber = nh.subscribe("cartesian_logger",1, cartesian_state_callback); // subscribe to the topic publishing the cartesian state of the end effector
     ros::Subscriber ft_subscriber = nh.subscribe("transformed_ft_wrench",1,ft_callback);                       // subscribe to the force/torque sensor data
-    ros::Subscriber ft_sensor_sub = nh.subscribe("robotiq_ft_wrench", 1, ft_sensor_callback);                  // ROS: Subscribe to the force-torque sensor wrench
+    ros::Subscriber ft_sensor_sub = nh.subscribe("current_frame_ft_wrench", 1, ft_sensor_callback);                  // ROS: Subscribe to the force-torque sensor wrench
     ros::Subscriber tool_vector_sub_x = nh.subscribe("tool_vector_x", 1, tool_vector_x_callback);                // subscribe to the value of the tool vector in the z, published from the accomodation controller
     ros::Subscriber tool_vector_sub_y = nh.subscribe("tool_vector_y", 1, tool_vector_y_callback);                // subscribe to the value of the tool vector in the z, published from the accomodation controller
     ros::Subscriber tool_vector_sub_z = nh.subscribe("tool_vector_z", 1, tool_vector_z_callback);                // subscribe to the value of the tool vector in the z, published from the accomodation controller
@@ -206,7 +221,7 @@ int main(int argc, char** argv) {
 
     irb120_accomodation_control::set_current_frame set_frame_srv;
     
-    ROS_INFO("after setup");
+    // ROS_INFO("after setup");
     /*
     How to tune params:
     PULL_DISTANCE: By increasing this, the virtual force is greater, and decreasing decreases it
@@ -257,7 +272,7 @@ int main(int argc, char** argv) {
 
 
     // The end effector pose (current_pose) and force torque data (ft_in_robot_frame) are global variables.
-    ROS_INFO("Before Reading params");
+    // ROS_INFO("Before Reading params");
     // ROS: Get parameter passed in 
     nh.param("/CartP2PTWL/trans_x", x, 0.0);
     nh.param("/CartP2PTWL/trans_y", y, 0.0);
@@ -267,7 +282,6 @@ int main(int argc, char** argv) {
     nh.param("/CartP2PTWL/rot_z", phi, 0.0);
     nh.param("/CartP2PTWL/bumpless", bumpless, false); //TODO fix and make sure this works
 
-    cout<<"Bumpless status: "<<bumpless<<endl; //! add a user interrupt/pause here to read and check this
     
     nh.param<std::string>("/CartP2PTWL/param_set", param_set, "Tool");
 
@@ -282,7 +296,7 @@ int main(int argc, char** argv) {
 
     nh.deleteParam("/CartP2PTWL/param_set");
 
-    ROS_INFO("after reading and deleting params");
+    // ROS_INFO("after reading and deleting params");
     // Here, the values for PULL_DISTANCE and FORCE_THRESHOLD are changed according to what setting the GUI is on for the appropriate task
     if(!strcmp(param_set.c_str(), "Peg")){
         // set the new values here
@@ -322,9 +336,9 @@ int main(int argc, char** argv) {
     }
     else if (!strcmp(param_set.c_str(), "Cutting")){
         // set the other values here
-        FORCE_THRESHOLD = 4;
+        FORCE_THRESHOLD = 10;
         TORQUE_THRESHOLD = 2;
-        KEEP_CUTTING_DISTANCE = 0.001; // was 0.001
+        KEEP_CUTTING_DISTANCE = 0.0005; // was 0.001
         SETTLE_TIME = 5;
 
         stowage = true; // stowage true, task false?
@@ -358,8 +372,8 @@ int main(int argc, char** argv) {
     }
     else if (!strcmp(param_set.c_str(), "Deep_Drive")){
         // set the other values here
-        FORCE_THRESHOLD = 30;
-        TORQUE_THRESHOLD = 2; // lower this so we turn slow and stop 
+        FORCE_THRESHOLD = 25;
+        TORQUE_THRESHOLD = 1.5; // lower this so we turn slow and stop 
         KEEP_CUTTING_DISTANCE = 0; 
         SETTLE_TIME = 5;
         MAX_ANG = 0.02; // this is reduced to slowly turn onto the grooves
@@ -372,21 +386,29 @@ int main(int argc, char** argv) {
     }
 
     //TODO ADD PARAM FOR TOOL EXCHANGE
-    ROS_INFO("after storing params");
+    // ROS_INFO("after storing params");
 
     //TODO call service set_frame_service
-    ROS_INFO_STREAM(param_set.c_str());
+    // ROS_INFO_STREAM(param_set.c_str());
     set_frame_srv.request.task_name = param_set.c_str();
     // cout<<set_frame_srv<<endl;
     // Define our new kmatrix to store value from the set frame service, used for the bumpless start
     irb120_accomodation_control::matrix_msg k_mat;
-    ROS_INFO("Before calling set frame service");
+    // ROS_INFO("Before calling set frame service");
     if(client_set_frame.call(set_frame_srv)){
         k_mat = set_frame_srv.response.K_mat;
-        cout<<set_frame_srv.response.status<<endl<<"Current frame: "<<set_frame_srv.response.updated_frame<<endl;
-        ROS_INFO_STREAM(set_frame_srv.response.updated_frame);
+        // cout<<set_frame_srv.response.status<<endl<<"Current frame: "<<set_frame_srv.response.updated_frame<<endl;
+        // ROS_INFO_STREAM(set_frame_srv.response.updated_frame);
     }
-    ROS_INFO("After calling set frame service");
+    // ROS_INFO("After calling set frame service");
+    // Define our K matrix
+    Eigen::Vector3d k_trans, k_rot;
+    k_trans(0) = k_mat.trans_mat.x;
+    k_trans(1) = k_mat.trans_mat.y;
+    k_trans(2) = k_mat.trans_mat.z;
+    k_rot(0) = k_mat.rot_mat.x;
+    k_rot(1) = k_mat.rot_mat.y;
+    k_rot(2) = k_mat.rot_mat.z;
 
     // Update our values (may want to spin more than once?)
     for(int i = 0; i < 10; i++){
@@ -464,7 +486,7 @@ int main(int argc, char** argv) {
     delta_trans_vec.x = x;
     delta_trans_vec.y = y;
     delta_trans_vec.z = z;
-    cout<<"Input Delta Vector"<<endl<<delta_trans_vec<<endl;
+    // cout<<"Input Delta Vector"<<endl<<delta_trans_vec<<endl;
 
     //TODO Calculate the end pose here based on the input, take the relative change and add it in the tool frame,
     //TODO if we use interactive markers in rviz, use that to get ending pos
@@ -570,7 +592,7 @@ int main(int argc, char** argv) {
     double run_length = n_steps * DT;
     cout<<"Runtime Length: "<<run_length<<endl;
     // ROS_INFO("Runtime Length: %f", run_length); // might want to do a cout
-    cout<<"Number of Loops: "<<n_steps<<endl;
+    // cout<<"Number of Loops: "<<n_steps<<endl;
     // ROS_INFO("Number of Loops: %i", n_steps); // might want to do a cout
 
     // Scale the translation steps into the smaller sections to be added in each time step
@@ -585,7 +607,7 @@ int main(int argc, char** argv) {
 
     //TODO Update goal reached exit condition to include orientation
     // Dot product, uf the value is above 0, we hit the target movement
-    double goal_dist = sqrt(pow(vector_to_goal.x,2) + pow(vector_to_goal.y,2) + pow(vector_to_goal.z,2));
+    double goal_dist = sqrt(pow(vector_to_goal.x,2) + pow(vector_to_goal.y,2) + pow(vector_to_goal.z,2)); // vector_to_goal.norm()
     // If it is past the plane perpendicular to the direction of movement at the goal position, then we have reached the position
     // If the rotation is within some amount, then we have reached the rotation, and if both are true, then we have reached the target 
     bool target_reached, pos_reached, rot_reached;
@@ -601,29 +623,74 @@ int main(int argc, char** argv) {
     // cout<<"Current Orientation "<<endl<<current_pose_quat<<endl;
     // cout<<"Goal Orientation "<<endl<<end_pose_quat<<endl<<endl;
 
-    // Output for whether we are frozen or not
-    cout<<"Freeze status: "<<freeze_mode<<endl<<"Freeze message: "<<freeze_mode_status<<endl<<endl;
+    // make sure we have sensor data
+    while(ft_in_current_frame.force.x == 0){
+        naptime.sleep();
+        ros::spinOnce();
+    }
 
-    int temple = 0;
-    // ROS_INFO("Before loop");
-    // cout << "Before loop (enter any number to continue): ";
-    // cin >> temple;
-    // ROS_INFO(freeze_mode_status);
 
-    // Loop variable to check effort limit condition
-    bool effort_limit_crossed = false;
-    //! change to be ft in current frame? 
-    effort_limit_crossed = ((abs(ft_in_sensor_frame.torque.x) > TORQUE_THRESHOLD) || (abs(ft_in_sensor_frame.torque.y) > TORQUE_THRESHOLD) || (abs(ft_in_sensor_frame.torque.z) > TORQUE_THRESHOLD) ||
-                                 (abs(ft_in_sensor_frame.force.x) > FORCE_THRESHOLD) || (abs(ft_in_sensor_frame.force.y) > FORCE_THRESHOLD) || (abs(ft_in_sensor_frame.force.z) > FORCE_THRESHOLD));
 
+
+    virtual_attractor.pose = interaction_pose; 
+    virtual_attractor.header.frame_id = "current_frame";
 
     //TODO Bumpless start here, after making sure we have not crossed the effort limit already, confirm how we want to do this
-    virtual_attractor.pose = interaction_pose; //! CHANGE TO BE FT
-    virtual_attractor.header.frame_id = "current_frame";
+    if(bumpless && !cutting){
+        //! Calculate the pose of the attractor based on selection matrix (input) k matrix (from service call) and wrench (subscribed)
+        //!  we want to make sure that this works
+        //TODO Code for attractor and tool pose in current_frame the bumpless attr pose calculated here
+        
+        cout<<"we are bumpless!!!!!!!!!!!!!!!!!!!!!1!!"<<endl;
+
+        // Move wrench into an eigen for better math
+        Eigen::VectorXd wrench_with_respect_to_current(6);
+        wrench_with_respect_to_current(0) = ft_in_current_frame.force.x;
+        wrench_with_respect_to_current(1) = ft_in_current_frame.force.y;
+        wrench_with_respect_to_current(2) = ft_in_current_frame.force.z;
+        wrench_with_respect_to_current(3) = ft_in_current_frame.torque.x;
+        wrench_with_respect_to_current(4) = ft_in_current_frame.torque.y;
+        wrench_with_respect_to_current(5) = ft_in_current_frame.torque.z;
+
+        // cout<<"Modified Wrench: "<<endl<<wrench_with_respect_to_current<<endl;
+
+        // Define the virtual position based on the wrench on the FT sensor in the current frame, with the interaction port defined in the current frame (convert from )
+        Eigen::Vector3d bumpless_virtual_attractor_position = -(k_trans.asDiagonal().inverse() * wrench_with_respect_to_current.head(3)); 
+        // Then add this offset onto the pose of the interaction port in the current frame
+        bumpless_virtual_attractor_position(0) += interaction_pose.position.x;
+        bumpless_virtual_attractor_position(1) += interaction_pose.position.y;
+        bumpless_virtual_attractor_position(2) += interaction_pose.position.z;
+
+
+        // Calculate the orientation of the attractor based on the felt wrench, and then add on the orientation of the ft sensor
+        // We get the offset of the attractor required, and then we can conver it to a rotation matrix, and then add that rotation on to the current orientation of the IP in the current frame
+        Eigen::Vector3d bumpless_virtual_attractor_angles = -(k_rot.asDiagonal().inverse() * wrench_with_respect_to_current.tail(3));
+        // cout<<"Vector of angles: "<<endl<<bumpless_virtual_attractor_angles<<endl;
+        /// Define rotation matrix of the interaction port 
+        // cout<<"Pose of interaction port: "<<endl<<interaction_pose<<endl;
+        Eigen::Matrix3d interaction_rot = Eigen::Quaterniond(interaction_pose.orientation.w,interaction_pose.orientation.x,interaction_pose.orientation.y,interaction_pose.orientation.z).toRotationMatrix();
+        // cout<<"Rot mat of interaction port"<<endl<<interaction_rot<<endl;
+        // Convert bumpless attr to rot matrix (define a func here, vec of angles to AA, then AA to rot)
+        Eigen::Matrix3d virtual_attractor_rotation_matrix = interaction_rot * rotation_matrix_from_vector_of_angles(bumpless_virtual_attractor_angles); //! not done yet
+        // Take this rot mat, and then post multiply it to the current ft rotation matrix in the appropriate frame (IP, maybe define a new Affine for it?)
+        // cout<<"Rot mat of virt attr"<<virtual_attractor_rotation_matrix<<endl;
+        //! change to be interaction port
+        // Put the virtual attractor at the end effector
+        // virtual_attractor.pose = current_pose; // If we are using the tooltip
+        virtual_attractor.pose.position.x = bumpless_virtual_attractor_position(0);
+        virtual_attractor.pose.position.y = bumpless_virtual_attractor_position(1);
+        virtual_attractor.pose.position.z = bumpless_virtual_attractor_position(2);
+        Eigen::Quaterniond virtual_quat(virtual_attractor_rotation_matrix); //! Does this work
+        // cout<<"Quat of virt attr"<<virtual_quat<<endl;
+        virtual_attractor.pose.orientation.w = virtual_quat.w();
+        virtual_attractor.pose.orientation.x = virtual_quat.x();
+        virtual_attractor.pose.orientation.y = virtual_quat.y();
+        virtual_attractor.pose.orientation.z = virtual_quat.z();
+    }
 
     //! In in cutting, pull down to keep contact
     if(cutting){ //TODO fix this
-        cout<<"Adding initial pull down distance"<<endl;
+        // cout<<"Adding initial pull down distance"<<endl;
         virtual_attractor.pose.position.z = virtual_attractor.pose.position.z + KEEP_CUTTING_DISTANCE;
     } //!FIX THIS
 
@@ -634,20 +701,20 @@ int main(int argc, char** argv) {
         naptime.sleep();
     }
     
-    cout<<freeze_mode_status<<endl;
-    cout<<freeze_srv.response<<endl;
+    // cout<<freeze_mode_status<<endl;
+    // cout<<freeze_srv.response<<endl;
 
     
-    // Check here after a spin, and unfreeze if it is frozen //! uncomment after checking new cartp2ptwl with current_frame based math
+    // Check here after a spin, and unfreeze if it is frozen 
     while(freeze_mode_status.data == 1 && freeze_mode){
         
         if(freeze_updated && freeze_client.call(freeze_srv)){
             // success
-            cout<<"Called freeze mode service succesfully"<<endl;
+            // cout<<"Called freeze mode service succesfully"<<endl;
         }
         else{
             // failed to call service
-            ROS_ERROR("Failed to call freeze service");
+            // ROS_ERROR("Failed to call freeze service");
         }
         ros::spinOnce();
         naptime.sleep();
@@ -661,9 +728,14 @@ int main(int argc, char** argv) {
         naptime.sleep();
     }
 
+    // Loop variable to check effort limit condition
+    bool effort_limit_crossed = false;
+    //! change to be ft in current frame? 
+    effort_limit_crossed = ((abs(ft_in_current_frame.torque.x) > TORQUE_THRESHOLD) || (abs(ft_in_current_frame.torque.y) > TORQUE_THRESHOLD) || (abs(ft_in_current_frame.torque.z) > TORQUE_THRESHOLD) ||
+                                 (abs(ft_in_current_frame.force.x) > FORCE_THRESHOLD) || (abs(ft_in_current_frame.force.y) > FORCE_THRESHOLD) || (abs(ft_in_current_frame.force.z) > FORCE_THRESHOLD));
 
-    cout<<freeze_mode_status<<endl;
-    cout<<freeze_srv.response<<endl;
+    // cout<<freeze_mode_status<<endl;
+    // cout<<freeze_srv.response<<endl;
 
     // should now be unfrozen
 
@@ -672,7 +744,6 @@ int main(int argc, char** argv) {
     double loops_so_far = 0;
 
     // Begin loop
-    // Assuming we're always going in the x direction.
     /*
     Loop End Conditions:
     1. The operation has timed out (ran the max alloted time)
@@ -683,7 +754,7 @@ int main(int argc, char** argv) {
     while( (loops_so_far < total_number_of_loops) && !effort_limit_crossed && !target_reached && !freeze_mode) {
         // ROS: for communication between programs
         ros::spinOnce();
-        cout<<"Loops so far: "<<loops_so_far<<endl<<"n_steps: "<<n_steps<<endl<<"total_number_of_loops: "<<total_number_of_loops<<endl;
+        // cout<<"Loops so far: "<<loops_so_far<<endl<<"n_steps: "<<n_steps<<endl<<"total_number_of_loops: "<<total_number_of_loops<<endl;
 
 
 
@@ -716,8 +787,8 @@ int main(int argc, char** argv) {
             virtual_attractor.pose.orientation.w = new_virtual_attractor_quat.w();
         }
         else if (loops_so_far >= n_steps){
-            cout<<"Interpolation complete"<<endl;
-            ROS_INFO_STREAM("Interpolation complete");
+            // cout<<"Interpolation complete"<<endl;
+            // ROS_INFO_STREAM("Interpolation complete");
         }
         
         // Update values for goal checks 
@@ -745,15 +816,14 @@ int main(int argc, char** argv) {
         target_reached = pos_reached && rot_reached;
 
         // Update the values for the loop condition
-        //TODO update these to be in sensor frame? 
-        effort_limit_crossed = ((abs(ft_in_sensor_frame.torque.x) > TORQUE_THRESHOLD) || (abs(ft_in_sensor_frame.torque.y) > TORQUE_THRESHOLD) || (abs(ft_in_sensor_frame.torque.z) > TORQUE_THRESHOLD) ||
-                                 (abs(ft_in_sensor_frame.force.x) > FORCE_THRESHOLD) || (abs(ft_in_sensor_frame.force.y) > FORCE_THRESHOLD) || (abs(ft_in_sensor_frame.force.z) > FORCE_THRESHOLD));
+        effort_limit_crossed = ((abs(ft_in_current_frame.torque.x) > TORQUE_THRESHOLD) || (abs(ft_in_current_frame.torque.y) > TORQUE_THRESHOLD) || (abs(ft_in_current_frame.torque.z) > TORQUE_THRESHOLD) ||
+                                 (abs(ft_in_current_frame.force.x) > FORCE_THRESHOLD) || (abs(ft_in_current_frame.force.y) > FORCE_THRESHOLD) || (abs(ft_in_current_frame.force.z) > FORCE_THRESHOLD));
 
         loops_so_far = loops_so_far + 1;
 
         // Debug output
-        cout<<"Difference Vector"<<endl<<vector_to_goal<<endl;
-        cout<<"Distance to Goal"<<endl<<goal_dist<<endl<<endl;
+        // cout<<"Difference Vector"<<endl<<vector_to_goal<<endl;
+        // cout<<"Distance to Goal"<<endl<<goal_dist<<endl<<endl;
 
         // ROS: for communication between programs
         virtual_attractor.header.stamp = ros::Time::now();
@@ -764,38 +834,42 @@ int main(int argc, char** argv) {
         // cout<<"Current position: "<<endl<<abs(interaction_pose.position.x)<<endl;
     }
 
+
+    cout<<"Difference Vector"<<endl<<vector_to_goal<<endl;
+    cout<<"Distance to Goal"<<endl<<goal_dist<<endl<<endl;
+
     // TODO update the end conditions
     // If we've crossed the effort limts, check which is crossed for the status output
     //TODO change to be the task or stowage frame (or tool)
     if(effort_limit_crossed) {
 
         // Print message
-        if (abs(ft_in_sensor_frame.torque.x) > TORQUE_THRESHOLD)
+        if (abs(ft_in_current_frame.torque.x) > TORQUE_THRESHOLD)
         {
             cout<<"X Torque threshold crossed"<<endl;
             srv.request.status = "X Torque threshold crossed";
         }
-        else if (abs(ft_in_sensor_frame.torque.y) > TORQUE_THRESHOLD)
+        else if (abs(ft_in_current_frame.torque.y) > TORQUE_THRESHOLD)
         {
             cout<<"Y Torque threshold crossed"<<endl;
             srv.request.status = "Y Torque threshold crossed";
         }
-        else if (abs(ft_in_sensor_frame.torque.z) > TORQUE_THRESHOLD)
+        else if (abs(ft_in_current_frame.torque.z) > TORQUE_THRESHOLD)
         {
             cout<<"Z Torque threshold crossed"<<endl;
             srv.request.status = "Z Torque threshold crossed";
         }
-        else if (abs(ft_in_sensor_frame.force.x) > FORCE_THRESHOLD)
+        else if (abs(ft_in_current_frame.force.x) > FORCE_THRESHOLD)
         {
             cout<<"X Force threshold crossed"<<endl;
             srv.request.status = "X Force threshold crossed";
         }
-        else if (abs(ft_in_sensor_frame.force.y) > FORCE_THRESHOLD)
+        else if (abs(ft_in_current_frame.force.y) > FORCE_THRESHOLD)
         {
             cout<<"Y Force threshold crossed"<<endl;
             srv.request.status = "Y Force threshold crossed";
         }
-        else if (abs(ft_in_sensor_frame.force.z) > FORCE_THRESHOLD)
+        else if (abs(ft_in_current_frame.force.z) > FORCE_THRESHOLD)
         {
             cout<<"Z Force threshold crossed"<<endl;
             srv.request.status = "Z Force threshold crossed";
@@ -826,7 +900,6 @@ int main(int argc, char** argv) {
     }
 
     //If we've timed out
-    //TODO add a goal check
     if (loops_so_far > n_steps){
         srv.request.status = "Timed out";
         // ROS: for communication between programs
@@ -834,6 +907,9 @@ int main(int argc, char** argv) {
 
         // we want to sleep here in compliance for some time
         cout<<"Interpolation completed"<<endl;
+        if (loops_so_far >= total_number_of_loops){
+            cout<<"Timed Out"<<endl;
+        }
 
     }
 
@@ -850,7 +926,7 @@ int main(int argc, char** argv) {
 
     // ROS: for communication between programs
     ros::spinOnce();
-    virtual_attractor_publisher.publish(virtual_attractor);
+    // virtual_attractor_publisher.publish(virtual_attractor);
     naptime.sleep();
 
     // Go to freeze mode (if not already in it)

@@ -159,18 +159,18 @@ int main(int argc, char** argv) {
     n_steps *= 2;
 
     // debug output
-    ROS_INFO_STREAM("Diff in deg");
-    ROS_INFO_STREAM(rad2deg_vect(joint_states_diff));
-    ROS_INFO_STREAM("Diff");
-    ROS_INFO_STREAM(joint_states_diff);
-    ROS_INFO_STREAM("Diff Norm");
-    ROS_INFO_STREAM(joint_states_diff.norm());
-    ROS_INFO_STREAM("Vel in rad");
-    ROS_INFO_STREAM(desired_joint_velocity);
-    ROS_INFO_STREAM("Vel in rad norm");
-    ROS_INFO_STREAM(desired_joint_velocity.norm());
-    ROS_INFO_STREAM("N_steps");
-    ROS_INFO_STREAM(n_steps);
+    // ROS_INFO_STREAM("Diff in deg");
+    // ROS_INFO_STREAM(rad2deg_vect(joint_states_diff));
+    // ROS_INFO_STREAM("Diff");
+    // ROS_INFO_STREAM(joint_states_diff);
+    // ROS_INFO_STREAM("Diff Norm");
+    // ROS_INFO_STREAM(joint_states_diff.norm());
+    // ROS_INFO_STREAM("Vel in rad");
+    // ROS_INFO_STREAM(desired_joint_velocity);
+    // ROS_INFO_STREAM("Vel in rad norm");
+    // ROS_INFO_STREAM(desired_joint_velocity.norm());
+    // ROS_INFO_STREAM("N_steps");
+    // ROS_INFO_STREAM(n_steps);
 
     // Define rate at which we loop through main program, in Hz
 	ros::Rate naptime(1/dt_);
@@ -200,10 +200,10 @@ int main(int argc, char** argv) {
             desired_joint_velocity = joint_states_diff;
         }
 
-        ROS_INFO_STREAM("Diff in rad");
-        ROS_INFO_STREAM(joint_states_diff);
-        ROS_INFO_STREAM("Vel in rad");
-        ROS_INFO_STREAM(desired_joint_velocity);
+        // ROS_INFO_STREAM("Diff in rad");
+        // ROS_INFO_STREAM(joint_states_diff);
+        // ROS_INFO_STREAM("Vel in rad");
+        // ROS_INFO_STREAM(desired_joint_velocity);
         // cout<<endl<<"enter an int: ";
         // cin>>temp;
 
@@ -219,7 +219,7 @@ int main(int argc, char** argv) {
 
 		// Publish desired jointstate
 		joint_states_pub.publish(desired_joint_state);
-        ROS_INFO_STREAM(desired_joint_state);
+        // ROS_INFO_STREAM(desired_joint_state);
 		// last_desired_joint_states_ = desired_joint_state;
         naptime.sleep();
 		ros::spinOnce();
@@ -236,7 +236,7 @@ int main(int argc, char** argv) {
     for(int i = 0; i < 6; i++) desired_joint_state.velocity[i] = std::round(desired_joint_velocity(i) * 1000) /1000;
 
     joint_states_pub.publish(desired_joint_state);
-    ROS_INFO_STREAM(desired_joint_state);
+    // ROS_INFO_STREAM(desired_joint_state);
     // last_desired_joint_states_ = desired_joint_state;
     naptime.sleep();
     ros::spinOnce();

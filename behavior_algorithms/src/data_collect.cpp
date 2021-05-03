@@ -25,7 +25,9 @@ geometry_msgs::PoseStamped virtual_attractor;
 geometry_msgs::PoseStamped init_attractor;
 geometry_msgs::Wrench ft_in_current_frame;
 
-geometry_msgs::Wrench ft_in_sensor_frame;
+// Globally accessible so that it can be updated at each callback
+double force_x_end, force_y_end, force_z_end, force_end, torque_x_end, torque_y_end, torque_z_end, torque_end;
+
 
 // ROS: callback functions for how we receive data
 void cartesian_state_callback(const geometry_msgs::PoseStamped& cartesian_pose) {
@@ -34,16 +36,20 @@ void cartesian_state_callback(const geometry_msgs::PoseStamped& cartesian_pose) 
 void ft_callback(const geometry_msgs::Wrench& ft_values) {
     // These are not values from the sensor. They are f/t values transformed into robot base frame.
     ft_in_current_frame = ft_values;
+
+    force_x_end = ft_in_current_frame.force.x;
+    force_y_end = ft_in_current_frame.force.y;
+    force_z_end = ft_in_current_frame.force.z;
+    torque_x_end = ft_in_current_frame.torque.x;
+    torque_y_end = ft_in_current_frame.torque.y;
+    torque_z_end = ft_in_current_frame.torque.z;
+    
+    force_end = sqrt(pow(ft_in_current_frame.force.x,2) + pow(ft_in_current_frame.force.y,2) + pow(ft_in_current_frame.force.z,2));
+    torque_end = sqrt(pow(ft_in_current_frame.torque.x,2) + pow(ft_in_current_frame.torque.y,2) + pow(ft_in_current_frame.torque.z,2));
 } 
 void virtual_attractor_callback(const geometry_msgs::PoseStamped &cartesian_pose_attr)
 {
     init_attractor = cartesian_pose_attr;
-}
-
-//! REMOVE 
-// For use for testing
-void ft_sensor_callback(const geometry_msgs::WrenchStamped &ft_values){
-    ft_in_sensor_frame = ft_values.wrench;
 }
 
 // ROS: main program
@@ -56,8 +62,6 @@ int main(int argc, char** argv) {
     ros::Subscriber attr_subscriber = nh.subscribe("tfd_virt_attr", 1, virtual_attractor_callback);
     ros::Publisher virtual_attractor_publisher = nh.advertise<geometry_msgs::PoseStamped>("Virt_attr_pose",1);
 
-    //! Remove
-    ros::Subscriber ft_sensor_sub = nh.subscribe("robotiq_ft_wrench", 1, ft_sensor_callback); 
 
     // Declare constants
     double DT = 0.01;
@@ -75,6 +79,9 @@ int main(int argc, char** argv) {
     // values for average
     double force_avg,force_x_avg, force_y_avg, force_z_avg, torque_avg, torque_x_avg, torque_y_avg, torque_z_avg;
 
+    // values for starting and ending wrench
+    double force_x_start, force_y_start, force_z_start, torque_x_start, torque_y_start, torque_z_start;
+
     //! Change data type to be ros::Time? maybe time starts at 0, how to display number fully
     // Define timestamps for each event
     double force_x_min_time, force_x_max_time, force_y_min_time, force_y_max_time, force_z_min_time, force_z_max_time;
@@ -89,12 +96,24 @@ int main(int argc, char** argv) {
 
 
     // ROS: Wait until we have wrench data. Our default position is 0.
-    while(current_pose.position.x == 0 && ft_in_sensor_frame.force.x == 0) ros::spinOnce();
-
+    while(current_pose.position.x == 0 || ft_in_current_frame.force.x == 0) {
+        ros::spinOnce();
+        naptime.sleep();
+    }
     ROS_INFO("Collecting data");
+
+    force_x_start = ft_in_current_frame.force.x;
+    force_y_start = ft_in_current_frame.force.y;
+    force_z_start = ft_in_current_frame.force.z;
+    torque_x_start = ft_in_current_frame.torque.x;
+    torque_y_start = ft_in_current_frame.torque.y;
+    torque_z_start = ft_in_current_frame.torque.z;
+
+    double force_start = sqrt(pow(ft_in_current_frame.force.x,2) + pow(ft_in_current_frame.force.y,2) + pow(ft_in_current_frame.force.z,2));
+    double torque_start = sqrt(pow(ft_in_current_frame.torque.x,2) + pow(ft_in_current_frame.torque.y,2) + pow(ft_in_current_frame.torque.z,2));
     
     // used for calcuiilating averages
-    int count = 0;
+    int counter = 0;
 
     // Begin loop
     //TODO add an exit with Phold
@@ -104,76 +123,76 @@ int main(int argc, char** argv) {
         
         // Gather and update data here
         //! FORCE
-        if(ft_in_sensor_frame.force.x > force_x_max){
+        if(ft_in_current_frame.force.x > force_x_max){
             // update new value
-            force_x_max = ft_in_sensor_frame.force.x;
+            force_x_max = ft_in_current_frame.force.x;
             // timestamp
             force_x_max_time = ros::Time::now().toSec();
         }
-        else if(ft_in_sensor_frame.force.x < force_x_min){
+        else if(ft_in_current_frame.force.x < force_x_min){
             // update new value
-            force_x_min = ft_in_sensor_frame.force.x;
+            force_x_min = ft_in_current_frame.force.x;
             // timestamp
             force_x_min_time = ros::Time::now().toSec();
         }
-        if(ft_in_sensor_frame.force.y > force_y_max){
+        if(ft_in_current_frame.force.y > force_y_max){
             // update new value
-            force_y_max = ft_in_sensor_frame.force.y;
+            force_y_max = ft_in_current_frame.force.y;
             // timestamp
             force_y_max_time = ros::Time::now().toSec();
         }
-        else if(ft_in_sensor_frame.force.y < force_y_min){
+        else if(ft_in_current_frame.force.y < force_y_min){
             // update new value
-            force_y_min = ft_in_sensor_frame.force.y;
+            force_y_min = ft_in_current_frame.force.y;
             // timestamp
             force_y_min_time = ros::Time::now().toSec();
         }
-        if(ft_in_sensor_frame.force.z > force_z_max){
+        if(ft_in_current_frame.force.z > force_z_max){
             // update new value
-            force_z_max = ft_in_sensor_frame.force.z;
+            force_z_max = ft_in_current_frame.force.z;
             // timestamp
             force_z_max_time = ros::Time::now().toSec();
         }
-        else if(ft_in_sensor_frame.force.z < force_z_min){
+        else if(ft_in_current_frame.force.z < force_z_min){
             // update new value
-            force_z_min = ft_in_sensor_frame.force.z;
+            force_z_min = ft_in_current_frame.force.z;
             // timestamp
             force_z_min_time = ros::Time::now().toSec();
         }
         //! TORQUE
-        if(ft_in_sensor_frame.torque.x > torque_x_max){
+        if(ft_in_current_frame.torque.x > torque_x_max){
             // update new value
-            torque_x_max = ft_in_sensor_frame.torque.x;
+            torque_x_max = ft_in_current_frame.torque.x;
             // timestamp
             torque_x_max_time = ros::Time::now().toSec();
         }
-        else if(ft_in_sensor_frame.torque.x < torque_x_min){
+        else if(ft_in_current_frame.torque.x < torque_x_min){
             // update new value
-            torque_x_min = ft_in_sensor_frame.torque.x;
+            torque_x_min = ft_in_current_frame.torque.x;
             // timestamp
             torque_x_min_time = ros::Time::now().toSec();
         }
-        if(ft_in_sensor_frame.torque.y > torque_y_max){
+        if(ft_in_current_frame.torque.y > torque_y_max){
             // update new value
-            torque_y_max = ft_in_sensor_frame.torque.y;
+            torque_y_max = ft_in_current_frame.torque.y;
             // timestamp
             torque_y_max_time = ros::Time::now().toSec();
         }
-        else if(ft_in_sensor_frame.torque.y < torque_y_min){
+        else if(ft_in_current_frame.torque.y < torque_y_min){
             // update new value
-            torque_y_min = ft_in_sensor_frame.torque.y;
+            torque_y_min = ft_in_current_frame.torque.y;
             // timestamp
             torque_y_min_time = ros::Time::now().toSec();
         }
-        if(ft_in_sensor_frame.torque.z > torque_z_max){
+        if(ft_in_current_frame.torque.z > torque_z_max){
             // update new value
-            torque_z_max = ft_in_sensor_frame.torque.z;
+            torque_z_max = ft_in_current_frame.torque.z;
             // timestamp
             torque_z_max_time = ros::Time::now().toSec();
         }
-        else if(ft_in_sensor_frame.torque.z < torque_z_min){
+        else if(ft_in_current_frame.torque.z < torque_z_min){
             // update new value
-            torque_z_min = ft_in_sensor_frame.torque.z;
+            torque_z_min = ft_in_current_frame.torque.z;
             // timestamp
             torque_z_min_time = ros::Time::now().toSec();
         }
@@ -181,8 +200,8 @@ int main(int argc, char** argv) {
         // Calculate the magnitude of the force and the torque to compare it to the values we already have
 
         // calculate magnitude
-        double force_magnitude = sqrt(pow(ft_in_sensor_frame.force.x,2) + pow(ft_in_sensor_frame.force.y,2) + pow(ft_in_sensor_frame.force.z,2));
-        double torque_magnitude = sqrt(pow(ft_in_sensor_frame.torque.x,2) + pow(ft_in_sensor_frame.torque.y,2) + pow(ft_in_sensor_frame.torque.z,2));
+        double force_magnitude = sqrt(pow(ft_in_current_frame.force.x,2) + pow(ft_in_current_frame.force.y,2) + pow(ft_in_current_frame.force.z,2));
+        double torque_magnitude = sqrt(pow(ft_in_current_frame.torque.x,2) + pow(ft_in_current_frame.torque.y,2) + pow(ft_in_current_frame.torque.z,2));
 
         // compare and update values
         if(force_magnitude > force_max){
@@ -212,17 +231,17 @@ int main(int argc, char** argv) {
 
         //! Calculate averages
 
-        force_avg = (force_avg * count + force_magnitude) / (count + 1);
-        force_x_avg = (force_x_avg * count + ft_in_sensor_frame.force.x) / (count + 1);
-        force_y_avg = (force_y_avg * count + ft_in_sensor_frame.force.y) / (count + 1);
-        force_z_avg = (force_z_avg * count + ft_in_sensor_frame.force.z) / (count + 1);
+        force_avg = (force_avg * counter + force_magnitude) / (counter + 1);
+        force_x_avg = (force_x_avg * counter + ft_in_current_frame.force.x) / (counter + 1);
+        force_y_avg = (force_y_avg * counter + ft_in_current_frame.force.y) / (counter + 1);
+        force_z_avg = (force_z_avg * counter + ft_in_current_frame.force.z) / (counter + 1);
 
-        torque_avg = (torque_avg * count + torque_magnitude) / (count + 1);
-        torque_x_avg = (torque_x_avg * count + ft_in_sensor_frame.torque.x) / (count + 1);
-        torque_y_avg = (torque_y_avg * count + ft_in_sensor_frame.torque.y) / (count + 1);
-        torque_z_avg = (torque_z_avg * count + ft_in_sensor_frame.torque.z) / (count + 1);
+        torque_avg = (torque_avg * counter + torque_magnitude) / (counter + 1);
+        torque_x_avg = (torque_x_avg * counter + ft_in_current_frame.torque.x) / (counter + 1);
+        torque_y_avg = (torque_y_avg * counter + ft_in_current_frame.torque.y) / (counter + 1);
+        torque_z_avg = (torque_z_avg * counter + ft_in_current_frame.torque.z) / (counter + 1);
 
-        count++;
+        counter++;
 
         // Print all info out
         // ROS_INFO("---------------------------------------");
@@ -256,14 +275,14 @@ int main(int argc, char** argv) {
 
 
         // // Print estimated time
-        // ROS_INFO("Estimated time: %f",(count * DT));
+        // ROS_INFO("Estimated time: %f",(counter * DT));
 
         naptime.sleep();
     }
 
     // Print all info out on kill of node   
     cout<<"---------------------------------------"<<endl;
-    cout<<"Estimated time: "<<(count * DT)<<endl;
+    cout<<"Estimated time: "<<(counter * DT)<<endl;
     cout<<"Average magnitude of force: "<<force_avg<<endl;
     cout<<"Maximum magnitude of force: "<<force_max<<"\tMax at time: "<<force_max_time<<endl;
     cout<<"Minimum magnitude of force: "<<force_min<<"\tMin at time: "<<force_min_time<<endl;
@@ -291,6 +310,28 @@ int main(int argc, char** argv) {
     cout<<"Average Z torque: "<<torque_z_avg<<endl;
     cout<<"Maximum Z torque: "<<torque_z_max<<"\tMax at time: "<<torque_z_max_time<<endl;
     cout<<"Minimum Z torque: "<<torque_z_min<<"\tMin at time: "<<torque_z_min_time<<endl;
+    cout<<"---Starting Wrench---"<<endl;
+    cout<<"Starting X Force: "<<force_x_start<<endl;
+    cout<<"Starting Y Force: "<<force_y_start<<endl;
+    cout<<"Starting Z Force: "<<force_z_start<<endl;
+    cout<<"Starting X Torque: "<<torque_x_start<<endl;
+    cout<<"Starting Y Torque: "<<torque_y_start<<endl;
+    cout<<"Starting Z Torque: "<<torque_z_start<<endl;
+    cout<<"---Ending Wrench---"<<endl;
+    cout<<"Starting X Force: "<<force_x_end<<endl;
+    cout<<"Starting Y Force: "<<force_y_end<<endl;
+    cout<<"Starting Z Force: "<<force_z_end<<endl;
+    cout<<"Starting X Torque: "<<torque_x_end<<endl;
+    cout<<"Starting Y Torque: "<<torque_y_end<<endl;
+    cout<<"Starting Z Torque: "<<torque_z_end<<endl;
+    cout<<"---Starting and Ending Magnitudes---"<<endl;
+    cout<<"Starting force: "<<force_start<<endl;
+    cout<<"Starting torque: "<<torque_start<<endl;
+    cout<<"Ending force: "<<force_end<<endl;
+    cout<<"Ending torque: "<<torque_end<<endl;
+    cout<<"Change in Force: "<<(force_end - force_start)<<endl;
+    cout<<"Change in Torque: "<<(torque_end - torque_start)<<endl;
+    
 
     //TODO add in starting and ending wrench, magnitude or whatever
 

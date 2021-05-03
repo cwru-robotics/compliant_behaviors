@@ -360,8 +360,8 @@ bool setCurrentFrameServiceCallback(irb120_accomodation_control::set_current_fra
 	}
 	else if (!strcmp(task_name.c_str(), "Cutting")){
 		current_frame = "Stowage";
-		k_trans << 1500,1500,1500;
-		k_rot << 40,40,40;
+		k_trans << 1000,1000,1000;
+		k_rot << 80,80,80;
 		k_combined.topLeftCorner(3,3) = k_trans.asDiagonal();
 		k_combined.bottomRightCorner(3,3) = k_rot.asDiagonal();
 		b_des_vec << 4000,4000,4000,200,200,200;

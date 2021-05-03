@@ -15,7 +15,7 @@ delay_len = 0
 
 # List of options for preset values, to be associated with related values in each function
 options = ['Peg', 'Bottle_Cap', 'Cutting', 'Tool', 'Task', 'Stowage', "Deep_Drive"]
-selected_option = 4
+selected_option = 5
 
 metric_cmd = "rosrun behavior_algorithms data_collect"
 
@@ -522,6 +522,7 @@ class Application(tk.Frame):
         self.joint_5.delete(0, 'end')
         self.joint_6.delete(0, 'end')
         self.entry.delete(0, 'end')
+        # add in clearing the check boxes as well
 
 
     #! Change which file is called here, and add in params for which axes to preserve wrench
@@ -562,7 +563,7 @@ class Application(tk.Frame):
 
         command = command + ' _trans_x:={0} _trans_y:={1} _trans_z:={2} _rot_x:={3} _rot_y:={4} _rot_z:={5} _param_set:={6}'.format(trans_x, trans_y, trans_z, rot_x, rot_y, rot_z, self.parameter_set.get())
 
-        print(command)
+        # print(command)
 
         self.call_cmd(command)
 
@@ -598,7 +599,7 @@ class Application(tk.Frame):
 
         command = command + ' _trans_x:={0} _trans_y:={1} _trans_z:={2} _rot_x:={3} _rot_y:={4} _rot_z:={5} _param_set:={6}'.format(trans_x, trans_y, trans_z, rot_x, rot_y, rot_z, self.parameter_set.get())
 
-        print(command)
+        # print(command)
 
         self.call_cmd(command)
 
@@ -635,7 +636,7 @@ class Application(tk.Frame):
         command = command + ' _trans_x:={0} _trans_y:={1} _trans_z:={2} _rot_x:={3} _rot_y:={4} _rot_z:={5} _param_set:={6}'.format(
             trans_x, trans_y, trans_z, rot_x, rot_y, rot_z, self.parameter_set.get())
 
-        print(command)
+        # print(command)
         
         self.call_cmd(command)
 
@@ -681,16 +682,16 @@ class Application(tk.Frame):
         except:
             rot_z = 0
 
-        print(x,y,z,rot_x,rot_y,rot_z)
+        # print(x,y,z,rot_x,rot_y,rot_z)
         bump = False
         if self.cart_bumpless.instate(['selected']):
-            bump = 1
+            bump = "true"
         else:
-            bump = 0
+            bump = "false"
         command = \
             'rosrun behavior_algorithms cartp2ptwl _trans_x:={0} _trans_y:={1} _trans_z:={2} _rot_x:={3} _rot_y:={4} _rot_z:={5} _param_set:={6} _bumpless:={7}'.format(x,y,z,rot_x,rot_y,rot_z,self.parameter_set.get(),bump)
         
-        print(command)
+        # print(command)
         self.call_cmd(command)
         
     
@@ -732,13 +733,13 @@ class Application(tk.Frame):
         except:
             joint_6 = 0
 
-        print(joint_1,joint_2,joint_3,joint_4,joint_5,joint_6)
+        # print(joint_1,joint_2,joint_3,joint_4,joint_5,joint_6)
         
         command = \
             'rosrun irb120_accomodation_control simple_joint_commander _joint_1:={0} _joint_2:={1} _joint_3:={2} _joint_4:={3} _joint_5:={4} _joint_6:={5}'.format(joint_1,joint_2,joint_3,joint_4,joint_5,joint_6)
         
 
-        print(command)
+        # print(command)
 
         self.call_cmd(command)
         
