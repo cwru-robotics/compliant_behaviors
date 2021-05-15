@@ -131,6 +131,7 @@ class Application(tk.Frame):
     def pos_hold(self):
         time.sleep(delay_len)
         os.system('rosservice call /freeze_service')  
+        os.system('rosservice call /joint_freeze_service')  
         time.sleep(delay_len)
 
 

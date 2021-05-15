@@ -6,6 +6,7 @@
 
 // ROS: include libraries
 #include <irb120_accomodation_control/irb120_accomodation_control.h>
+#include <irb120_accomodation_control/freeze_service.h>
 #include <cmath>
 #include <ros/ros.h>
 using namespace std;
@@ -14,6 +15,9 @@ using namespace std;
 Eigen::VectorXd joint_states_goal_ = Eigen::VectorXd::Zero(6); // command input value
 Eigen::VectorXd joint_states_ = Eigen::VectorXd::Zero(6); // input value
 sensor_msgs::JointState desired_joint_state; // our commanded value/output
+
+// boolean used for user interrupt
+bool freeze = false;
 
 // bool jnt_cmd = true, cart_cmd = false; // which method of commands we will use
 bool jnt_states_update = false; // while we have not gotten data, wait until we do
@@ -47,6 +51,13 @@ void jointStateCallback(const sensor_msgs::JointState& joint_state) {
     // can convert joint states to degrees here (for readability)
 }
 
+// ROS: Used as a user interrupt for joint comands
+bool freezeServiceCallback(irb120_accomodation_control::freeze_serviceRequest &request, irb120_accomodation_control::freeze_serviceResponse &response) {
+	// Toggle freezemode/interrupt interpolation
+	freeze = true;
+	return true;
+}
+
 // ROS: main fnc to compute the transition
 int main(int argc, char** argv) {
 	ros::init(argc, argv, "simple_joint_commander");
@@ -55,6 +66,9 @@ int main(int argc, char** argv) {
 	ros::Publisher joint_states_pub = nh.advertise<sensor_msgs::JointState>("abb120_joint_angle_command",1); // TODO CHANGE FOR ROBOT AGNOSTIC
 	// ros::Subscriber cartesian_command_sub = nh.subscribe<geometry_msgs::Pose>("abb_cartesian_command",1,&CartesianCmdCb);
 	// ros::Subscriber cartesian_twist_sub = nh.subscribe<geometry_msgs::Twist>("abb_twist_command",1,&TwistCmdCb);
+
+    // ROS: Service to toggle freeze mode
+	ros::ServiceServer freeze_service = nh.advertiseService("joint_freeze_service",freezeServiceCallback);
     
     // ROS: Define our joint state
     desired_joint_state.position.resize(6);
@@ -177,14 +191,15 @@ int main(int argc, char** argv) {
 
     // Initialize our desired pose
     des_jnt_pos = joint_states_;
-    int temp = 0;
-    // cout<<endl<<"BEFORE LOOP; enter an int: ";
-    // cin>>temp;
+    
+    // make sure we are not frozen, if there is a service call to toggle the freeze then we will stop interpolation
+    freeze = false;
 
+    ros::spinOnce();
+    naptime.sleep();
     // update to only run until we interpolated to the final pose
     //? do we want to add an updated velocity, and check, with the exit condition of within some norm off?
-    while(ros::ok() && joint_states_diff.norm() > GOAL_REACHED_ERR && loops_so_far < n_steps){
-        ros::spinOnce();
+    while(ros::ok() && joint_states_diff.norm() > GOAL_REACHED_ERR && loops_so_far < n_steps && !freeze){
         
         // Calculate our distance to goal again (exit condition)
         joint_states_diff = joint_states_goal_ - joint_states_;
@@ -204,8 +219,6 @@ int main(int argc, char** argv) {
         // ROS_INFO_STREAM(joint_states_diff);
         // ROS_INFO_STREAM("Vel in rad");
         // ROS_INFO_STREAM(desired_joint_velocity);
-        // cout<<endl<<"enter an int: ";
-        // cin>>temp;
 
         loops_so_far++;
 
@@ -223,6 +236,10 @@ int main(int argc, char** argv) {
 		// last_desired_joint_states_ = desired_joint_state;
         naptime.sleep();
 		ros::spinOnce();
+    }
+
+    if(freeze){
+        ROS_INFO_STREAM("User interrupt called.");
     }
 
     // Final command is 0 velocity, and current pose, we publiush then sleep and exit
