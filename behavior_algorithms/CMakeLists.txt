@@ -168,6 +168,7 @@ add_executable(current_translational_wiggle_pull src/current_translational_wiggl
 add_executable(current_torsional_wiggle_pull src/current_torsional_wiggle_pull.cpp)
 add_executable(stowage_state_machine src/stowage_state_machine.cpp)
 add_executable(retrieval_state_machine src/retrieval_state_machine.cpp)
+add_executable(combined_state_machine src/combined_state_machine.cpp)
 add_executable(data_collect src/data_collect.cpp)
 
 ## Rename C++ executable without prefix
@@ -202,6 +203,7 @@ add_dependencies(force_moment_accommodation ${catkin_EXPORTED_TARGETS})
 add_dependencies(force_moment_accommodation_interaction_port ${catkin_EXPORTED_TARGETS})
 add_dependencies(stowage_state_machine ${catkin_EXPORTED_TARGETS})
 add_dependencies(retrieval_state_machine ${catkin_EXPORTED_TARGETS})
+add_dependencies(combined_state_machine ${catkin_EXPORTED_TARGETS})
 add_dependencies(data_collect ${catkin_EXPORTED_TARGETS})
 
 
@@ -300,6 +302,9 @@ target_link_libraries(quat_to_euler_ang_converter
  ${catkin_LIBRARIES}
 )
 target_link_libraries(retrieval_state_machine
+${catkin_LIBRARIES}
+)
+target_link_libraries(combined_state_machine
 ${catkin_LIBRARIES}
 )
 #############

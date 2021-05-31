@@ -50,13 +50,13 @@ class Application(tk.Frame):
 
         # Config for the button layout
 
-        self.quit = tk.Button(self, text='QUIT', fg='red',
-                              command=self.master.destroy,
-                              font='Courier 20 bold')
+        # self.quit = tk.Button(self, text='QUIT', fg='red',
+        #                       command=self.master.destroy,
+        #                       font='Courier 20 bold')
 
-        # self.quit['font'] = myFont
+        # # self.quit['font'] = myFont
 
-        self.quit.grid(row=2, column=0, sticky=tk.NS)
+        # self.quit.grid(row=2, column=0, sticky=tk.NS)
 
 
         # Button for Zero Forces
@@ -95,6 +95,13 @@ class Application(tk.Frame):
         self.pos_hold.grid(row=2, column=1,
                 sticky=tk.NSEW, pady=5, padx=2)
 
+        # Button for Joint Position Hold
+        self.j_pos_hold = tk.Button(self,
+                text='Joint Pos Hold', fg='blue',
+                command=self.joint_pos_hold, font='Courier 20 bold')
+        self.j_pos_hold.grid(row=2, column=0,
+                sticky=tk.NSEW, pady=5, padx=2)
+
         # Show all buttons
 
         self.pack()
@@ -130,8 +137,12 @@ class Application(tk.Frame):
     
     def pos_hold(self):
         time.sleep(delay_len)
-        os.system('rosservice call /freeze_service')  
-        os.system('rosservice call /joint_freeze_service')  
+        os.system('rosservice call /freeze_service')
+        time.sleep(delay_len)
+
+    def joint_pos_hold(self):
+        time.sleep(delay_len)
+        os.system('rosservice call /joint_freeze_service')
         time.sleep(delay_len)
 
 

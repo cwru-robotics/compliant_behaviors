@@ -385,7 +385,7 @@ bool setCurrentFrameServiceCallback(irb120_accomodation_control::set_current_fra
 		b_des_vec << 4000,4000,4000,200,200,200;
 		b_des_inv = b_des_vec.asDiagonal().inverse();
 	}
-	else if (!strcmp(task_name.c_str(), "Quick_Disconnect")){
+	else if (!strcmp(task_name.c_str(), "Quick_Disconnect")){ // is this implemented ? 
 		current_frame = "Task";
 		k_trans << 1500,1500,1500;
 		k_rot << 40,40,40;

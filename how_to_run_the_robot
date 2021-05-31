@@ -1,6 +1,5 @@
 How to Run the Robot
-Updated 8/27/19
-
+Updated 5/25/21
 IRB 120:
 
 1. Turn the power switch on back of the robot controller to ON.
@@ -13,19 +12,18 @@ IRB 120:
 8. Click the menu again and choose Production Window.
 9. Push the motor button on the back of the robot to turn the motors on.
 10. Click "PP to Main" then "Yes". 
-11. Press the play button on the touch pendant. 
+11. Press the play button on the touch pendant. Once you have pressed play, launch the EGM controller. 
+	When there is a joint limit or any breach, YOU MUST CLOSE THE EGM BEFORE TRYING TO START AGAIN
 
 The robot should move to its starting position.
 
 Computer:
 
-1. Click the network connection icon at the top right of the desktop.
-2. Click on the second "Ethernet connection 1"
-3. In the terminal, use the following commands each in their own tabs:
-	a. Run a ros core:
+In the terminal, use the following commands each in their own tabs:
+	a. Run a ros core: *
 	roscore
 
-	b. Start the force-torque sensor:
+	b. Start the force-torque sensor: *
 	rosrun robotiq_ft_sensor rq_sensor
 
 	c. Start communications between the computer and the ABB controller:	
@@ -35,21 +33,31 @@ Computer:
 	rosservice call /robotiq_ft_sensor_acc "command_id: 8"
 
 	e. Start the accomodation controller:
+	rosrun irb120_accomodation_control ft_accommodation_controller
+
+	Older accommodation controllers are below: 
 	rosrun irb120_accomodation_control accommodation_controller
 	rosrun irb120_accomodation_control freeze_mode_accommodation_controller
 	
-	f. Start the plot data delay:
+	f. Start the plot data delay, or use OBS to delay the video output:
 	rosrun irb120_accomodation_control buffer
 
-	g. Start the delayed video feed
+	g. Start the delayed video feed or use OBS instead
 	gst-launch-1.0 v4l2src device=/dev/video0 ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 min-threshold-time=4000000000 ! autovideosink
 
 	h. Start the GUI from ~/ros_ws/src/manipulative-arm/gui/
-	python skills_gui.py
+	python cartp2ptwl_gui.py
+	AND
+	python misc_gui.py
 
-	i. Start the USB relay controller to control the Gripper  
+	i. Start the USB relay controller to control the Gripper  *
 	rosrun usb_relay_wsn ros_relay_bridge.py 
 
+	j. To view the robot model in rviz, you need to run 2 commands before launching rviz *
+	roslaunch irb120_description irb120_w_ft_sensor_and_tool.launch
+	THEN
+	rosrun robot_state_publisher robot_state_publisher joint_states:=abb120_joint_state *
 
-4. Run whatever skills you need to run
+
+4. Run whatever skills you need to run from the GUIs
 

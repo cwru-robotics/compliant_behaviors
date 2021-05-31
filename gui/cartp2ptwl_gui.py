@@ -39,10 +39,10 @@ class Application(tk.Frame):
 
         time.sleep(delay_len)
         # add subprocess for metrics here ? 
-        metric = subprocess.Popen(metric_cmd, shell=True)
+        # metric = subprocess.Popen(metric_cmd, shell=True)
         os.system(cmd)
-        metric.kill() # Does not seem to work, need to test this
-        os.system("rosnode kill data_collect")
+        # metric.kill() # Does not seem to work, need to test this
+        # os.system("rosnode kill data_collect")
         time.sleep(delay_len)
 
     def create_widgets(self):
