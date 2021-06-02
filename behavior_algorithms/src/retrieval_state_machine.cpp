@@ -194,11 +194,12 @@ int main(int argc, char **argv)
     Torque Limit: torque limit to use an RWE or pull back
     */
     double upper_stop_z_height = -0.01837, lower_stop_z_height = 0, approach_z_height = -0.0551, ROTATE_ANGLE = -0.136;
-    double contact_force_threshold = 10, contact_torque_threshold = 1, force_limit = 35, torque_limit = 4;
+    double contact_force_threshold = 10, contact_torque_threshold = 1, force_limit = 25, torque_limit = 2.5;
 
     int state = 0;
     double dt_ = 0.01;
     int loops_in_current_state = 0;
+    int restart_attempts = 0;
     bool state_machine_OK = true;
 
     // The goal orientation for the Unlock pose, a rotation around the Z axis
@@ -235,6 +236,16 @@ int main(int argc, char **argv)
         case 0:
             ROS_INFO("State 0: Stationary check");
 
+            if(restart_attempts >= 3){
+                ROS_WARN("Too many restart attempts, exiting state machine.");
+                state_machine_OK = false;
+                state = -1;
+                break;
+            }
+            
+            // Send the join command here: 
+            call_joint_fnc();
+
             // first make sure that the current frame is the stowage frame:
             for(int i = 0; i < 10; i++){
                 ros::spinOnce();
@@ -243,7 +254,7 @@ int main(int argc, char **argv)
 
             // calc if the current pose is good to proceed (check if it's within translational and rotational constraints)
             // Make sure that these numbers are the ones we want for the approach pose
-            if (pos_check(Eigen::Vector3d(0, 0, approach_z_height), 0.006, 0.006, 0.005) && orient_check(Eigen::Matrix3d::Identity()))
+            if (pos_check(Eigen::Vector3d(0, 0, approach_z_height), 0.006, 0.006, 0.005) && orient_check(Eigen::Matrix3d::Identity(), 0.06, 0.06))
             { 
                 state = 1;
                 
@@ -262,6 +273,9 @@ int main(int argc, char **argv)
         case 1:
             ROS_INFO("State 1: Move down into contact");
             ROS_INFO("Loop ctr = %d", loops_in_current_state);
+            ROS_INFO("Contact threshold: %i", (contact_force_threshold < abs(ft_current_frame.force.z)) ? 1 : 0);
+            ROS_INFO("Position Check: %i", (pos_check(Eigen::Vector3d(0, 0, lower_stop_z_height),  0.01, 0.01, 0.006)) ? 1 : 0);
+            ROS_INFO("Orientation Check: %i", (orient_check(Eigen::Matrix3d::Identity(), 0.2, 0.2)) ? 1 : 0);
 
             // based on current frame, known z height of the stowage bay, also orientation check (make sure we are not tilted drastically)
             if (contact_force_threshold < abs(ft_current_frame.force.z) && pos_check(Eigen::Vector3d(0, 0, lower_stop_z_height), 0.01, 0.01, 0.006) && orient_check(Eigen::Matrix3d::Identity(), 0.2, 0.2))
@@ -278,13 +292,14 @@ int main(int argc, char **argv)
             if (loops_in_current_state > 6)
             {
                 // can call an rwe in case we are jammed
-                call_rwe_fnc(0, 0, 0, 0, 0, 0);
+                call_rwe_fnc();
                 // pull back and clear of the bay
                 call_ptwl_fnc(0, 0, -0.05, 0, 0, 0);
                 state = 0; // make it -1 maybe
                 loops_in_current_state = 0;
                 cout << "Restarting state machine from state 1" << endl;
                 ROS_INFO("Restarting state machine from state 1");
+                restart_attempts++;
                 break;
             }
             // if we have high forces, still too high, and maybe misaligned, then run RWE
@@ -329,6 +344,9 @@ int main(int argc, char **argv)
         case 3:
             ROS_INFO("State 3: Unlock the Stowage Bay");
             ROS_INFO("Loop ctr = %d", loops_in_current_state);
+            ROS_INFO("Contact threshold: %i", (contact_torque_threshold < abs(ft_current_frame.torque.z)) ? 1 : 0);
+            ROS_INFO("Position Check: %i", (pos_check(Eigen::Vector3d(0, 0, lower_stop_z_height),  0.01, 0.01, 0.006)) ? 1 : 0);
+            ROS_INFO("Orientation Check: %i", (orient_check(unlock_orientation)) ? 1 : 0);
 
             if (contact_torque_threshold < abs(ft_current_frame.torque.z) && pos_check(Eigen::Vector3d(0, 0, lower_stop_z_height), 0.015, 0.015, 0.015) && orient_check(unlock_orientation))
             {
@@ -352,7 +370,7 @@ int main(int argc, char **argv)
                 break;
             }
             // if we have high forces, still too high, and maybe misaligned, then run RWE
-            else if (loops_in_current_state > 2 && (!orient_check(unlock_orientation) || (torque_limit < abs(ft_current_frame.torque.z))))
+            else if ((force_limit < abs(ft_current_frame.force.z)) || (torque_limit < abs(ft_current_frame.torque.z)))
             {
                 call_rwe_fnc(0, 0, 0, 0, 0, 0); //relieve ALL loads
             }
@@ -371,17 +389,25 @@ int main(int argc, char **argv)
         case 4:
             ROS_INFO("State 4: Pulling out the tool");
             ROS_INFO("Loop ctr = %d", loops_in_current_state);
+
+            call_rwe_fnc(0, 0, 0, 0, 0, 0); //relieve ALL loads
             
             // pull out
             call_ptwl_fnc(0, 0, -0.06, 0, 0, 0);
 
+            naptime.sleep();
+            ros::spinOnce();
+            
+            cout<<"Current affine: "<<curr_affine.translation()<<endl;
+
             // Check if we have cleared the stowage bay, then give succes outpt
-            if (contact_torque_threshold < abs(ft_current_frame.torque.z) && curr_affine.translation().z() <= approach_z_height)
+            if (curr_affine.translation().z() <= approach_z_height + 0.01)
             {
                 state = -1;
                 loops_in_current_state = 0;
-                cout << "Successfully stowed tool in bay. Transitioning to state 5" << endl;
-                ROS_INFO("Successfully stowed tool in bay. Transitioning to state 5");
+                cout << "Successfully stowed tool in bay. Exiting state machine." << endl;
+                ROS_INFO("Successfully stowed tool in bay. Exiting state machine.");
+                // return true;
                 break;
             }
 
@@ -390,6 +416,7 @@ int main(int argc, char **argv)
             loops_in_current_state = 0;
             cout << "Exiting state machine from state 4" << endl;
             ROS_INFO("Exiting state machine from state 4");
+            // return false; // false
             
 
             break;
@@ -397,6 +424,7 @@ int main(int argc, char **argv)
         default:
             // wrap up the program, then exit the loop
             state_machine_OK = false;
+            // return false;
         }
         // exit cond when state is -1, or we can exit in default
 

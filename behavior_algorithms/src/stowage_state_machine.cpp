@@ -116,10 +116,10 @@ void call_ptwl_fnc(double trans_x, double trans_y, double trans_z, double rot_x,
     system(cmd.c_str());
 }
 // integer flags, 0 to alleviate that load, 1 to preserve it in that axis
-void call_rwe_fnc(int trans_x, int trans_y, int trans_z, int rot_x, int rot_y, int rot_z)
+void call_rwe_fnc(int trans_x=0, int trans_y=0, int trans_z=0, int rot_x=0, int rot_y=0, int rot_z=0)
 {
     string cmd = "rosrun behavior_algorithms force_moment_accommodation_interaction_port _trans_x:=" + to_string(trans_x) + " _trans_y:=" + to_string(trans_y) + " _trans_z:=" + to_string(trans_z) +
-                 " _rot_x:=" + to_string(rot_x) + " _rot_y:=" + to_string(rot_y) + " _rot_z:=" + to_string(rot_z) + " _param_set:=Stowage _run_time:=10";
+                 " _rot_x:=" + to_string(rot_x) + " _rot_y:=" + to_string(rot_y) + " _rot_z:=" + to_string(rot_z) + " _param_set:=Stowage _run_time:=5 ";
     system(cmd.c_str());
 }
 void call_joint_fnc(double joint_1 = 0, double joint_2 = -48, double joint_3 = 16, double joint_4 = 0, double joint_5 = 30, double joint_6 = 0)
@@ -149,12 +149,15 @@ int main(int argc, char **argv)
     Torque Limit: torque limit to use an RWE or pull back
     */
     double upper_stop_z_height = -0.01837, lower_stop_z_height = 0, approach_z_height = -0.0551, ROTATE_ANGLE = -0.136;
-    double contact_force_threshold = 10, contact_torque_threshold = 1, force_limit = 35, torque_limit = 4;
+    double contact_force_threshold = 15, contact_torque_threshold = 1, force_limit = 25, torque_limit = 2.5;
 
     int state = 0;
     double dt_ = 0.01;
     int loops_in_current_state = 0;
     bool state_machine_OK = true;
+    int restart_attempts = 0;
+
+    int successful_stow = 0, successful_retrieval = 0;
 
     // The goal orientation for the Unlock pose, a rotation around the Z axis
     Eigen::Matrix3d unlock_orientation;
@@ -171,8 +174,6 @@ int main(int argc, char **argv)
     // We do not plan to run live code here,
     ros::Rate naptime(1 / dt_);
 
-
-    // Set frame as stowage and then zero all forces before starting
     system("rosservice call /set_frame_service \"task_name: 'Stowage'\" ");
     system("rosservice call /robotiq_ft_sensor_acc \"command_id: 8\"");
     for(int i = 0; i < 10; i++){
@@ -192,6 +193,16 @@ int main(int argc, char **argv)
         case 0:
             ROS_INFO("State 0: Stationary check");
 
+            if(restart_attempts >= 3){
+                ROS_WARN("Too many restart attempts, exiting state machine.");
+                state_machine_OK = false;
+                state = -1;
+                break;
+            }
+
+            // send joint command: 
+            call_joint_fnc();
+
             for(int i = 0; i < 10; i++){
                 ros::spinOnce();
                 naptime.sleep();
@@ -199,7 +210,7 @@ int main(int argc, char **argv)
 
             // calc if the current pose is good to proceed (check if it's within translational and rotational constraints)
             // Make sure that these numbers are the ones we want for the approach pose
-            if (pos_check(Eigen::Vector3d(0, 0, approach_z_height), 0.006, 0.006, 0.005) && orient_check(Eigen::Matrix3d::Identity()))
+            if (pos_check(Eigen::Vector3d(0, 0, approach_z_height), 0.006, 0.006, 0.005) && orient_check(Eigen::Matrix3d::Identity(),0.06,0.06))
             { 
                 state = 1;
             }
@@ -208,7 +219,7 @@ int main(int argc, char **argv)
                 // cartesian move to approach pose?
 
                 //! Change to a cartesian move in a known manner, maybe want to add a condition that will not run joint command if we were kicked back here? or just transition to a different pose
-                call_joint_fnc(); //TODO update the approach pose joint angles
+                call_joint_fnc(); //TODO update the approach pose joint angles, or loop forever here
             }
 
             break;
@@ -217,6 +228,10 @@ int main(int argc, char **argv)
         case 1:
             ROS_INFO("State 1: Move down into contact");
             ROS_INFO("Loop ctr = %d", loops_in_current_state);
+            ROS_INFO("Contact threshold: %i", (contact_force_threshold < abs(ft_current_frame.force.z)) ? 1 : 0);
+            ROS_INFO("Position Check: %i", (pos_check(Eigen::Vector3d(0, 0, upper_stop_z_height), 0.005, 0.005, 0.005)) ? 1 : 0);
+            ROS_INFO("Orientation Check: %i", (orient_check(Eigen::Matrix3d::Identity(), 0.2, 0.2)) ? 1 : 0);
+
 
             // based on current frame, known z height of the stowage bay, also orientation check (make sure we are not tilted drastically)
             if (contact_force_threshold < abs(ft_current_frame.force.z) && pos_check(Eigen::Vector3d(0, 0, upper_stop_z_height), 0.005, 0.005, 0.005) && orient_check(Eigen::Matrix3d::Identity(), 0.2, 0.2))
@@ -240,6 +255,7 @@ int main(int argc, char **argv)
                 loops_in_current_state = 0;
                 cout << "Restarting state machine from state 1" << endl;
                 ROS_INFO("Restarting state machine from state 1");
+                restart_attempts++;
                 break;
             }
             // if we have high forces, still too high, and maybe misaligned, then run RWE
@@ -267,6 +283,9 @@ int main(int argc, char **argv)
         case 2:
             ROS_INFO("State 2: Unlock the Stowage Bay");
             ROS_INFO("Loop ctr = %d", loops_in_current_state);
+            ROS_INFO("Contact threshold: %i", (contact_torque_threshold < abs(ft_current_frame.torque.z)) ? 1 : 0);
+            ROS_INFO("Position Check: %i", (pos_check(Eigen::Vector3d(0, 0, upper_stop_z_height), 0.005, 0.005, 0.005)) ? 1 : 0);
+            ROS_INFO("Orientation Check: %i", (orient_check(unlock_orientation)) ? 1 : 0);
 
             if (contact_torque_threshold < abs(ft_current_frame.torque.z) && pos_check(Eigen::Vector3d(0, 0, upper_stop_z_height), 0.015, 0.015, 0.015) && orient_check(unlock_orientation))
             {
@@ -289,10 +308,11 @@ int main(int argc, char **argv)
                 loops_in_current_state = 0;
                 cout << "Restarting state machine from state 2" << endl;
                 ROS_INFO("Restarting state machine from state 2");
+                restart_attempts++;
                 break;
             }
             // if we have high forces, still too high, and maybe misaligned, then run RWE
-            else if (loops_in_current_state > 2 && (!orient_check(unlock_orientation) || (torque_limit < abs(ft_current_frame.torque.z))))
+            else if ((force_limit < abs(ft_current_frame.force.z)) || (torque_limit < abs(ft_current_frame.torque.z)))
             {
                 call_rwe_fnc(0, 0, 0, 0, 0, 0); //relieve ALL loads
             }
@@ -310,6 +330,12 @@ int main(int argc, char **argv)
         case 3:
             ROS_INFO("State 3: Bottom out into stowage bay");
             ROS_INFO("Loop ctr = %d", loops_in_current_state);
+            ROS_INFO("Wrench: ");
+            // ROS_INFO(ft_current_frame.force.x);
+            cout<<ft_current_frame<<endl;
+            ROS_INFO("Position Check: %i", (pos_check(Eigen::Vector3d(0, 0, lower_stop_z_height), 0.005, 0.005, 0.005)) ? 1 : 0);
+            ROS_INFO("Orientation Check: %i", (orient_check(unlock_orientation)) ? 1 : 0);
+
 
             if (contact_force_threshold < abs(ft_current_frame.force.z) && pos_check(Eigen::Vector3d(0, 0, lower_stop_z_height), 0.005, 0.005, 0.005) && orient_check(unlock_orientation))
             {
@@ -327,13 +353,13 @@ int main(int argc, char **argv)
                 state = -1;
                 loops_in_current_state = 0;
                 cout << "Exiting state machine from state 3" << endl;
-                ROS_INFO("Exiting state machine from state 3");
+                ROS_INFO("Exiting state machine from state 3"); // could just add return false here
                 break;
             }
             // if we have high forces, still too high, and maybe misaligned, then run RWE
-            else if (loops_in_current_state > 2 && (!orient_check(Eigen::Matrix3d::Identity()) || (force_limit < abs(ft_current_frame.force.z))))
+            else if ((torque_limit < abs(ft_current_frame.torque.z)) || (force_limit < abs(ft_current_frame.force.z)))
             {
-                call_rwe_fnc(0, 0, 1, 0, 0, 0);
+                call_rwe_fnc(0, 0, 0, 0, 0, 0);
             }
             // Move down normally otherwise
             else
@@ -349,6 +375,9 @@ int main(int argc, char **argv)
         case 4:
             ROS_INFO("State 4: Lock the Stowage Bay");
             ROS_INFO("Loop ctr = %d", loops_in_current_state);
+            ROS_INFO("Contact threshold: %i", (contact_torque_threshold < abs(ft_current_frame.torque.z)) ? 1 : 0);
+            ROS_INFO("Position Check: %i", (pos_check(Eigen::Vector3d(0, 0, lower_stop_z_height), 0.005, 0.005, 0.005)) ? 1 : 0);
+            ROS_INFO("Orientation Check: %i", (orient_check(Eigen::Matrix3d::Identity())) ? 1 : 0);
 
             // based on current frame, known z height of the stowage bay, also orientation check (make sure we are not tilted drastically)
             if (contact_torque_threshold < abs(ft_current_frame.torque.z) && pos_check(Eigen::Vector3d(0, 0, lower_stop_z_height), 0.005, 0.005, 0.005) && orient_check(Eigen::Matrix3d::Identity()))
@@ -370,7 +399,7 @@ int main(int argc, char **argv)
                 break;
             }
             // if we have high forces, still too high, and maybe misaligned, then run RWE
-            else if (loops_in_current_state > 2 && (!orient_check(Eigen::Matrix3d::Identity()) || (torque_limit < abs(ft_current_frame.torque.z))))
+            else if ((force_limit < abs(ft_current_frame.force.z)) || (torque_limit < abs(ft_current_frame.torque.z)))
             {
                 call_rwe_fnc(0, 0, 0, 0, 0, 0); //relieve ALL loads
             }
@@ -392,23 +421,24 @@ int main(int argc, char **argv)
             // first close the gripper to release the tool
             system("rosservice call /grip '[{id: 1, state: true}, {id: 2, state: false}]'");
             
+            //? probably unneeded
+            // call_rwe_fnc(0, 0, 0, 0, 0, 0);
             
             // move up and out of the stowage area
             call_ptwl_fnc(0, 0, -0.06, 0, 0, 0);
 
             // make sure we are high enough to be clear of the stowage bay
             // if(curr_pose.pose.position.z < approach_z_height || loops_in_current_state > 2){ // maybe want to make sure we are still low enough, z height, and also not tilted/orientation check
-            state = -1;
-
+            state = -2;
             cout << "Exiting state machine from state 5. Arm is clear of bay" << endl;
             ROS_INFO("Exiting state machine from state 5. Arm is clear of bay");
-            // }
-            // loops_in_current_state++;
+            // return true;
 
             break;
         default:
             // wrap up the program, then exit the loop
             state_machine_OK = false;
+            // return false;
         }
         // exit cond when state is -1, or we can exit in default
 
