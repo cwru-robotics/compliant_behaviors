@@ -76,14 +76,14 @@ class Application(tk.Frame):
 
         # Button for Open Gripper
         self.open_gripper = tk.Button(self,
-                text='Open Gripper', fg='blue',
+                text='Engage Gripper', fg='blue',
                 command=self.open_gripper, font='Courier 20 bold')
         self.open_gripper.grid(row=0, column=1,
                 sticky=tk.NSEW, pady=5, padx=2)
 
         # Button for Close Gripper
         self.close_gripper = tk.Button(self,
-                text='Close Gripper', fg='blue',
+                text='Release Gripper', fg='blue',
                 command=self.close_gripper, font='Courier 20 bold')
         self.close_gripper.grid(row=1, column=1,
                 sticky=tk.NSEW, pady=5, padx=2)

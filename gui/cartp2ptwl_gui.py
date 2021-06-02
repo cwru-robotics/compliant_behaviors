@@ -35,7 +35,7 @@ class Application(tk.Frame):
 
     # Here we run the command to send
     def call_cmd(self, cmd):
-        print(cmd)
+        # print(cmd)
 
         time.sleep(delay_len)
         # add subprocess for metrics here ? 

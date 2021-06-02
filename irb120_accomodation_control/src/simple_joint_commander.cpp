@@ -117,7 +117,7 @@ int main(int argc, char** argv) {
     // joint_states_goal_ << 0,-37,5,0,-60,0;
 
 
-    // ROS_INFO_STREAM(joint_states_goal_);
+    ROS_INFO_STREAM(joint_states_goal_);
     /*
     // Command line user input
     for(int i = 0; i < 6; i++){

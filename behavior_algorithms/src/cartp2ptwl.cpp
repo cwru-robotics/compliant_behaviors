@@ -517,7 +517,7 @@ int main(int argc, char** argv) {
     TO_DESTINATION_ROTATION_MATRIX(2,1) = sin(psi) * cos(theta);
     TO_DESTINATION_ROTATION_MATRIX(2,2) = cos(psi) * cos(theta);
 
-    ROS_INFO_STREAM(TO_DESTINATION_ROTATION_MATRIX);
+    // ROS_INFO_STREAM(TO_DESTINATION_ROTATION_MATRIX);
     // ROTATION
     Eigen::Vector3d k_rot_axis;
 
@@ -618,8 +618,8 @@ int main(int argc, char** argv) {
     target_reached = pos_reached && rot_reached;
 
     // Debug output
-    cout<<"Difference Vector"<<endl<<vector_to_goal<<endl;
-    cout<<"Distance to Goal"<<endl<<goal_dist<<endl<<endl;
+    // cout<<"Difference Vector"<<endl<<vector_to_goal<<endl;
+    cout<<"Initial Distance to Goal"<<endl<<goal_dist<<endl<<endl;
     // cout<<"Current Orientation "<<endl<<current_pose_quat<<endl;
     // cout<<"Goal Orientation "<<endl<<end_pose_quat<<endl<<endl;
 
@@ -641,7 +641,7 @@ int main(int argc, char** argv) {
         //!  we want to make sure that this works
         //TODO Code for attractor and tool pose in current_frame the bumpless attr pose calculated here
         
-        cout<<"we are bumpless!!!!!!!!!!!!!!!!!!!!!1!!"<<endl;
+        // cout<<"we are bumpless!!!!!!!!!!!!!!!!!!!!!1!!"<<endl;
 
         // Move wrench into an eigen for better math
         Eigen::VectorXd wrench_with_respect_to_current(6);
@@ -835,8 +835,8 @@ int main(int argc, char** argv) {
     }
 
 
-    cout<<"Difference Vector"<<endl<<vector_to_goal<<endl;
-    cout<<"Distance to Goal"<<endl<<goal_dist<<endl<<endl;
+    // cout<<"Final Difference Vector"<<endl<<vector_to_goal<<endl;
+    cout<<"Final Distance to Goal"<<endl<<goal_dist<<endl<<endl;
 
     // TODO update the end conditions
     // If we've crossed the effort limts, check which is crossed for the status output
