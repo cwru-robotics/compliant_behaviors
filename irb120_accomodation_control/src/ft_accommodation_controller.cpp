@@ -430,6 +430,7 @@ bool setCurrentFrameServiceCallback(irb120_accomodation_control::set_current_fra
 	response.K_mat.rot_mat = rot_vec;
 
 	// maybe want to add a sleep here, maybe won't solve root issue though
+	// ros::Duration(0.5).sleep();
 	
 	if(success){
 		cout<< "Success"<<endl<<"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"<<endl;
@@ -736,6 +737,7 @@ int main(int argc, char **argv) {
 	// Declare the bumpless virtual attractor's pose
 	Eigen::VectorXd bumpless_virtual_attractor_position(3);
 	Eigen::Vector3d bumpless_virtual_attractor_angles;
+	virtual_attractor_rotation_matrix.setIdentity();
 
 	// Define the freeze/latch_mode variables
 	bool first_loop_after_freeze = true;
@@ -835,16 +837,11 @@ int main(int argc, char **argv) {
 			cout<<bumpless_virtual_attractor_position<<endl;
 		}
 
-		virtual_wrench.head(3) = K_virtual_translational * (virtual_attractor_pos - sensor_with_respect_to_current.translation());
-		virtual_wrench.tail(3) = K_virtual_angular * (delta_phi_from_rots(sensor_with_respect_to_current.linear(), virtual_attractor_rotation_matrix));
-		// if(!freeze_mode){ //! do we want this attractor established?
-		// 	// calculate the virtual wrench 
-		// }else{
-		// 	// in a position hold
-		// 	virtual_wrench<<0,0,0,0,0,0;
-		// }
+		virtual_wrench.head(3) = k_trans.asDiagonal() * (virtual_attractor_pos - sensor_with_respect_to_current.translation());
+		virtual_wrench.tail(3) = k_rot.asDiagonal() * (delta_phi_from_rots(sensor_with_respect_to_current.linear(), virtual_attractor_rotation_matrix));
 
 		cout<<"virtual wrench: "<<endl<<virtual_wrench<<endl;
+		cout<<"diff of virt attr orient and tool orient"<<endl<<(delta_phi_from_rots(sensor_with_respect_to_current.linear(), virtual_attractor_rotation_matrix))<<endl;
 		cout<<"current frame: "<<current_frame<<endl;
 
 		//! CONTROL LAW BEGIN
@@ -862,7 +859,7 @@ int main(int argc, char **argv) {
 			// Output
 			cout<<"freeze mode on"<<endl;
 		}
-		cout<<"Desired twist: "<<endl<<desired_twist<<endl;
+		// cout<<"Desired twist: "<<endl<<desired_twist<<endl; //! Uncomment this later
 		cout<<"Combined Wrench: "<<endl<<combined_wrench<<endl;
 
 

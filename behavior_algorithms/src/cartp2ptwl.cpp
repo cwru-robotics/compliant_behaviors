@@ -687,7 +687,19 @@ int main(int argc, char** argv) {
         virtual_attractor.pose.position.z = virtual_attractor.pose.position.z + KEEP_CUTTING_DISTANCE;
     } //!FIX THIS
 
+    // Loop variable to check effort limit condition
+    bool effort_limit_crossed = false;
+    //! change to be ft in current frame? 
+    effort_limit_crossed = ((abs(ft_in_current_frame.torque.x) > TORQUE_THRESHOLD) || (abs(ft_in_current_frame.torque.y) > TORQUE_THRESHOLD) || (abs(ft_in_current_frame.torque.z) > TORQUE_THRESHOLD) ||
+                                 (abs(ft_in_current_frame.force.x) > FORCE_THRESHOLD) || (abs(ft_in_current_frame.force.y) > FORCE_THRESHOLD) || (abs(ft_in_current_frame.force.z) > FORCE_THRESHOLD));
 
+    if(effort_limit_crossed){
+        // Do nothing else, maybe just error output and then return? 
+        ROS_WARN("Effort limit above threshold at start, exiting PTWL");
+
+        // I just want to exit the file here
+        return 1;
+    }
     // spin, while we don't have data
     while(!freeze_updated){
         ros::spinOnce();
@@ -721,11 +733,6 @@ int main(int argc, char** argv) {
         naptime.sleep();
     }
 
-    // Loop variable to check effort limit condition
-    bool effort_limit_crossed = false;
-    //! change to be ft in current frame? 
-    effort_limit_crossed = ((abs(ft_in_current_frame.torque.x) > TORQUE_THRESHOLD) || (abs(ft_in_current_frame.torque.y) > TORQUE_THRESHOLD) || (abs(ft_in_current_frame.torque.z) > TORQUE_THRESHOLD) ||
-                                 (abs(ft_in_current_frame.force.x) > FORCE_THRESHOLD) || (abs(ft_in_current_frame.force.y) > FORCE_THRESHOLD) || (abs(ft_in_current_frame.force.z) > FORCE_THRESHOLD));
 
     // cout<<freeze_mode_status<<endl;
     // cout<<freeze_srv.response<<endl;
