@@ -60,7 +60,8 @@ add_definitions(${EIGEN_DEFINITIONS})
  add_service_files(
    FILES
    status_service.srv
-#   Service2.srv
+   ptwlSrv.srv
+   #   Service2.srv
  )
 
 ## Generate actions in the 'action' folder
@@ -171,6 +172,7 @@ add_executable(retrieval_state_machine src/retrieval_state_machine.cpp)
 add_executable(combined_state_machine src/combined_state_machine.cpp)
 add_executable(data_collect src/data_collect.cpp)
 
+add_executable(cartp2ptwl_service src/cartp2ptwl_service)
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
 ## target back to the shorter version for ease of user use
@@ -206,6 +208,7 @@ add_dependencies(retrieval_state_machine ${catkin_EXPORTED_TARGETS})
 add_dependencies(combined_state_machine ${catkin_EXPORTED_TARGETS})
 add_dependencies(data_collect ${catkin_EXPORTED_TARGETS})
 
+add_dependencies(cartp2ptwl_service ${catkin_EXPORTED_TARGETS})
 
 ## Specify libraries to link a library or executable target against
  target_link_libraries(peg_hole_linear_search
@@ -305,6 +308,10 @@ target_link_libraries(retrieval_state_machine
 ${catkin_LIBRARIES}
 )
 target_link_libraries(combined_state_machine
+${catkin_LIBRARIES}
+)
+
+target_link_libraries(cartp2ptwl_service
 ${catkin_LIBRARIES}
 )
 #############

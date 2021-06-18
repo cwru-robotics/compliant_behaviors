@@ -96,7 +96,7 @@
 	<!--box size="${width} ${width} ${height2}"/-->
 	<mesh filename="package://irb120_description/meshes/irb120/collision/link_1.stl"/>
       </geometry>
-      <material name="black"/>
+      <material name="orange"/>
     </visual>
 
     <inertial>
@@ -365,18 +365,18 @@
  	
  	<link name = "ft_sensor_link">
  		<collision>
- 			<origin xyz ="0 0 0" rpy = "0 0 0"/>
+ 			<origin xyz ="0.04 0 0" rpy = "0 1.5708 0"/>
  			<geometry>
- 				<cylinder length = "0.001" radius = "0.001"/>
+ 				<cylinder length = "0.08" radius = "0.03"/>
  			</geometry>
  		</collision>
  		<visual>
- 			<origin xyz = "0 0 0" rpy = "0 0 0"/>
+ 			<origin xyz = "0.04 0 0" rpy = "0 1.5708 0"/>
  			<geometry>
- 				<cylinder length = "0.001" radius = "0.001"/>
+ 				<cylinder length = "0.08" radius = "0.03"/>
  			</geometry>
  			<material name = "ft_sensor_color">
- 				<color rgba = "1 0.5 0 1"/>
+ 				<color rgba = "0 0 0 1"/> <!-- was 1 0.5 0 1 -->
  			</material>
  		</visual>
  		<inertial>

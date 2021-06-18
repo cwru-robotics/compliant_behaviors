@@ -21,7 +21,16 @@
 #include <irb120_accomodation_control/set_frame.h>
 #include <irb120_accomodation_control/set_current_frame.h>
 #include <irb120_accomodation_control/matrix_msg.h>
+#include <behavior_algorithms/ptwlSrv.h>
 using namespace std;
+
+// ROS: Services used in conjunction with buffer.cpp to have delayed program status sent to operator
+ros::ServiceClient client;
+ros::ServiceClient client_start;
+ros::ServiceClient client_set_frame;
+ros::ServiceClient freeze_client;
+
+ros::Publisher virtual_attractor_publisher;
 
 // Declare variables
 geometry_msgs::Pose current_pose;
@@ -157,54 +166,8 @@ Eigen::Matrix3d rotation_matrix_from_vector_of_angles(Eigen::Vector3d angle_vect
 	return rotation_matrix_from_vector_of_angles;
 }
 
-
-// ROS: main program
-int main(int argc, char** argv) {
-    // ROS: for communication between programs
-    ros::init(argc,argv,"CartP2PTWL");
-    ros::NodeHandle nh;
-
-    // ROS: Define subscribers and publishers used
-    //! Can just change transformed FT wrench to be normal ft wrench!!!!!!(only created in acc controller, we should read FT in tool frame, not robot base)
-
-    //! We want both the TF FT, and the Tool FT
-    //TODO Subscribe to current bumpless start, and just use that as the start pose? or set to be FT frame if bumpless is false
-    ros::Subscriber cartesian_state_subscriber = nh.subscribe("cartesian_logger",1, cartesian_state_callback); // subscribe to the topic publishing the cartesian state of the end effector
-    ros::Subscriber ft_sensor_sub = nh.subscribe("current_frame_ft_wrench", 1, ft_sensor_callback);                  // ROS: Subscribe to the force-torque sensor wrench
-    ros::Subscriber tool_vector_sub_x = nh.subscribe("tool_vector_x", 1, tool_vector_x_callback);                // subscribe to the value of the tool vector in the z, published from the accomodation controller
-    ros::Subscriber tool_vector_sub_y = nh.subscribe("tool_vector_y", 1, tool_vector_y_callback);                // subscribe to the value of the tool vector in the z, published from the accomodation controller
-    ros::Subscriber tool_vector_sub_z = nh.subscribe("tool_vector_z", 1, tool_vector_z_callback);                // subscribe to the value of the tool vector in the z, published from the accomodation controller
-    ros::Subscriber task_vector_sub_x = nh.subscribe("task_vector_x",1,task_vector_x_callback);                  // subscribe to the value of the task vector in the z, published from the accomodation controller
-    ros::Subscriber task_vector_sub_y = nh.subscribe("task_vector_y",1,task_vector_y_callback);                  // subscribe to the value of the task vector in the z, published from the accomodation controller
-    ros::Subscriber task_vector_sub_z = nh.subscribe("task_vector_z",1,task_vector_z_callback);                  // subscribe to the value of the task vector in the z, published from the accomodation controller
-    ros::Subscriber task_frame_sub = nh.subscribe("task_frame",1,task_frame_callback);                         // subscribe to the task frame published by the accomodation controller
-    ros::Subscriber stowage_vector_sub_x = nh.subscribe("stowage_vector_x",1,stowage_vector_x_callback);                  // subscribe to the value of the stowage vector in the z, published from the accomodation controller
-    ros::Subscriber stowage_vector_sub_y = nh.subscribe("stowage_vector_y",1,stowage_vector_y_callback);                  // subscribe to the value of the stowage vector in the z, published from the accomodation controller
-    ros::Subscriber stowage_vector_sub_z = nh.subscribe("stowage_vector_z",1,stowage_vector_z_callback);                  // subscribe to the value of the stowage vector in the z, published from the accomodation controller
-    ros::Subscriber stowage_frame_sub = nh.subscribe("stowage_frame",1,stowage_frame_callback);                         // subscribe to the stowage frame published by the accomodation controller
-    ros::Subscriber ft_vector_sub_x = nh.subscribe("ft_vector_x",1,ft_vector_x_callback);                  // subscribe to the value of the ft vector in the z, published from the accomodation controller
-    ros::Subscriber ft_vector_sub_y = nh.subscribe("ft_vector_y",1,ft_vector_y_callback);                  // subscribe to the value of the ft vector in the z, published from the accomodation controller
-    ros::Subscriber ft_vector_sub_z = nh.subscribe("ft_vector_z",1,ft_vector_z_callback);                  // subscribe to the value of the ft vector in the z, published from the accomodation controller
-    ros::Subscriber ft_frame_sub = nh.subscribe("ft_frame",1,ft_frame_callback);                         // subscribe to the ft frame published by the accomodation controller
-    ros::Subscriber interaction_frame_sub = nh.subscribe("interaction_port_frame",1,interaction_frame_callback);                         // subscribe to the ft frame published by the accomodation controller
-    
-    ros::Publisher virtual_attractor_publisher = nh.advertise<geometry_msgs::PoseStamped>("Virt_attr_pose",1); // publish the pose of the virtual attractor for the accomodation controller 
-
-    // ROS: Services used in conjunction with buffer.cpp to have delayed program status sent to operator
-    ros::ServiceClient client = nh.serviceClient<behavior_algorithms::status_service>("status_service");
-    ros::ServiceClient client_start = nh.serviceClient<behavior_algorithms::status_service>("start_service");
-    ros::ServiceClient client_set_frame = nh.serviceClient<irb120_accomodation_control::set_current_frame>("set_frame_service");
-    
-    // Define services and subscribers for the freeze mode status
-
-    // subscriber for freeze mode status (used in loop cond)
-    ros::Subscriber freeze_mode_sub = nh.subscribe("freeze_mode_topic",1,freeze_status_callback);
-    
-    // service client for setting and unsetting freeze mode at start of program
-    ros::ServiceClient freeze_client = nh.serviceClient<irb120_accomodation_control::freeze_service>("freeze_service");
-
-
-    // ROS: Service status variable for use with buffer.cpp
+bool main_callback(behavior_algorithms::ptwlSrv::Request &req, behavior_algorithms::ptwlSrv::Response &res){
+// ROS: Service status variable for use with buffer.cpp
     behavior_algorithms::status_service srv;
     srv.request.name = "CartP2PTWL";
 
@@ -267,27 +230,36 @@ int main(int argc, char** argv) {
     // The end effector pose (current_pose) and force torque data (ft_in_current_frame) are global variables.
     // ROS_INFO("Before Reading params");
     // ROS: Get parameter passed in 
-    nh.param("/CartP2PTWL/trans_x", x, 0.0);
-    nh.param("/CartP2PTWL/trans_y", y, 0.0);
-    nh.param("/CartP2PTWL/trans_z", z, 0.0);
-    nh.param("/CartP2PTWL/rot_x", psi, 0.0);
-    nh.param("/CartP2PTWL/rot_y", theta, 0.0);
-    nh.param("/CartP2PTWL/rot_z", phi, 0.0);
-    nh.param("/CartP2PTWL/bumpless", bumpless, false); //TODO fix and make sure this works
+    x = req.trans_x;
+    y = req.trans_y;
+    z = req.trans_z;
+    psi = req.rot_x;
+    theta = req.rot_y;
+    phi = req.rot_z;
+    bumpless = req.bumpless;
+    param_set = req.param_set;
+
+    // nh.param("/CartP2PTWL/trans_x", x, 0.0);
+    // nh.param("/CartP2PTWL/trans_y", y, 0.0);
+    // nh.param("/CartP2PTWL/trans_z", z, 0.0);
+    // nh.param("/CartP2PTWL/rot_x", psi, 0.0);
+    // nh.param("/CartP2PTWL/rot_y", theta, 0.0);
+    // nh.param("/CartP2PTWL/rot_z", phi, 0.0);
+    // nh.param("/CartP2PTWL/bumpless", bumpless, false); //TODO fix and make sure this works
 
     
-    nh.param<std::string>("/CartP2PTWL/param_set", param_set, "Tool");
+    // nh.param<std::string>("/CartP2PTWL/param_set", param_set, "Tool");
 
-    // clear parameter from server 
-    nh.deleteParam("/CartP2PTWL/trans_x"); 
-    nh.deleteParam("/CartP2PTWL/trans_y"); 
-    nh.deleteParam("/CartP2PTWL/trans_z"); 
-    nh.deleteParam("/CartP2PTWL/rot_x"); 
-    nh.deleteParam("/CartP2PTWL/rot_y"); 
-    nh.deleteParam("/CartP2PTWL/rot_z"); 
-    nh.deleteParam("/CartP2PTWL/bumpless"); 
+    // // clear parameter from server 
+    // nh.deleteParam("/CartP2PTWL/trans_x"); 
+    // nh.deleteParam("/CartP2PTWL/trans_y"); 
+    // nh.deleteParam("/CartP2PTWL/trans_z"); 
+    // nh.deleteParam("/CartP2PTWL/rot_x"); 
+    // nh.deleteParam("/CartP2PTWL/rot_y"); 
+    // nh.deleteParam("/CartP2PTWL/rot_z"); 
+    // nh.deleteParam("/CartP2PTWL/bumpless"); 
 
-    nh.deleteParam("/CartP2PTWL/param_set");
+    // nh.deleteParam("/CartP2PTWL/param_set");
 
     // ROS_INFO("after reading and deleting params");
     // Here, the values for PULL_DISTANCE and FORCE_THRESHOLD are changed according to what setting the GUI is on for the appropriate task
@@ -942,5 +914,56 @@ int main(int argc, char** argv) {
         freeze_client.call(freeze_srv);
     }
 
+}
+
+// ROS: main program
+int main(int argc, char** argv) {
+    // ROS: for communication between programs
+    ros::init(argc,argv,"CartP2PTWL");
+    ros::NodeHandle nh;
+
+    // ROS: Define subscribers and publishers used
+    //! Can just change transformed FT wrench to be normal ft wrench!!!!!!(only created in acc controller, we should read FT in tool frame, not robot base)
+
+    //! We want both the TF FT, and the Tool FT
+    //TODO Subscribe to current bumpless start, and just use that as the start pose? or set to be FT frame if bumpless is false
+    ros::Subscriber cartesian_state_subscriber = nh.subscribe("cartesian_logger",1, cartesian_state_callback); // subscribe to the topic publishing the cartesian state of the end effector
+    ros::Subscriber ft_sensor_sub = nh.subscribe("current_frame_ft_wrench", 1, ft_sensor_callback);                  // ROS: Subscribe to the force-torque sensor wrench
+    ros::Subscriber tool_vector_sub_x = nh.subscribe("tool_vector_x", 1, tool_vector_x_callback);                // subscribe to the value of the tool vector in the z, published from the accomodation controller
+    ros::Subscriber tool_vector_sub_y = nh.subscribe("tool_vector_y", 1, tool_vector_y_callback);                // subscribe to the value of the tool vector in the z, published from the accomodation controller
+    ros::Subscriber tool_vector_sub_z = nh.subscribe("tool_vector_z", 1, tool_vector_z_callback);                // subscribe to the value of the tool vector in the z, published from the accomodation controller
+    ros::Subscriber task_vector_sub_x = nh.subscribe("task_vector_x",1,task_vector_x_callback);                  // subscribe to the value of the task vector in the z, published from the accomodation controller
+    ros::Subscriber task_vector_sub_y = nh.subscribe("task_vector_y",1,task_vector_y_callback);                  // subscribe to the value of the task vector in the z, published from the accomodation controller
+    ros::Subscriber task_vector_sub_z = nh.subscribe("task_vector_z",1,task_vector_z_callback);                  // subscribe to the value of the task vector in the z, published from the accomodation controller
+    ros::Subscriber task_frame_sub = nh.subscribe("task_frame",1,task_frame_callback);                         // subscribe to the task frame published by the accomodation controller
+    ros::Subscriber stowage_vector_sub_x = nh.subscribe("stowage_vector_x",1,stowage_vector_x_callback);                  // subscribe to the value of the stowage vector in the z, published from the accomodation controller
+    ros::Subscriber stowage_vector_sub_y = nh.subscribe("stowage_vector_y",1,stowage_vector_y_callback);                  // subscribe to the value of the stowage vector in the z, published from the accomodation controller
+    ros::Subscriber stowage_vector_sub_z = nh.subscribe("stowage_vector_z",1,stowage_vector_z_callback);                  // subscribe to the value of the stowage vector in the z, published from the accomodation controller
+    ros::Subscriber stowage_frame_sub = nh.subscribe("stowage_frame",1,stowage_frame_callback);                         // subscribe to the stowage frame published by the accomodation controller
+    ros::Subscriber ft_vector_sub_x = nh.subscribe("ft_vector_x",1,ft_vector_x_callback);                  // subscribe to the value of the ft vector in the z, published from the accomodation controller
+    ros::Subscriber ft_vector_sub_y = nh.subscribe("ft_vector_y",1,ft_vector_y_callback);                  // subscribe to the value of the ft vector in the z, published from the accomodation controller
+    ros::Subscriber ft_vector_sub_z = nh.subscribe("ft_vector_z",1,ft_vector_z_callback);                  // subscribe to the value of the ft vector in the z, published from the accomodation controller
+    ros::Subscriber ft_frame_sub = nh.subscribe("ft_frame",1,ft_frame_callback);                         // subscribe to the ft frame published by the accomodation controller
+    ros::Subscriber interaction_frame_sub = nh.subscribe("interaction_port_frame",1,interaction_frame_callback);                         // subscribe to the ft frame published by the accomodation controller
+    
+    virtual_attractor_publisher = nh.advertise<geometry_msgs::PoseStamped>("Virt_attr_pose",1); // publish the pose of the virtual attractor for the accomodation controller 
+
+    // ROS: Services used in conjunction with buffer.cpp to have delayed program status sent to operator
+    client = nh.serviceClient<behavior_algorithms::status_service>("status_service");
+    client_start = nh.serviceClient<behavior_algorithms::status_service>("start_service");
+    client_set_frame = nh.serviceClient<irb120_accomodation_control::set_current_frame>("set_frame_service");
+    
+    //Main service to handle all the activities
+    ros::ServiceServer service = nh.advertiseService("cartp2ptwl_service",main_callback);
+
+    // Define services and subscribers for the freeze mode status
+
+    // subscriber for freeze mode status (used in loop cond)
+    ros::Subscriber freeze_mode_sub = nh.subscribe("freeze_mode_topic",1,freeze_status_callback);
+    
+    // service client for setting and unsetting freeze mode at start of program
+    freeze_client = nh.serviceClient<irb120_accomodation_control::freeze_service>("freeze_service");
+
+    ros::spin();
     // End of program
 }

@@ -149,7 +149,7 @@ int main(int argc, char **argv)
     Torque Limit: torque limit to use an RWE or pull back
     */
     double upper_stop_z_height = -0.01837, lower_stop_z_height = 0, approach_z_height = -0.0551, ROTATE_ANGLE = -0.136;
-    double contact_force_threshold = 15, contact_torque_threshold = 1, force_limit = 25, torque_limit = 2.5;
+    double contact_force_threshold = 15, contact_torque_threshold = .5, force_limit = 25, torque_limit = 2.5;
 
     int state = 0;
     double dt_ = 0.01;
@@ -220,6 +220,7 @@ int main(int argc, char **argv)
 
                 //! Change to a cartesian move in a known manner, maybe want to add a condition that will not run joint command if we were kicked back here? or just transition to a different pose
                 call_joint_fnc(); //TODO update the approach pose joint angles, or loop forever here
+                restart_attempts++;
             }
 
             break;

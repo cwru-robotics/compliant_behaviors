@@ -30,7 +30,8 @@ geometry_msgs::Pose current_pose;
 geometry_msgs::Pose current_ft_pose;
 geometry_msgs::Pose interaction_pose;
 geometry_msgs::PoseStamped virtual_attractor;
-geometry_msgs::Wrench ft_in_current_frame;
+geometry_msgs::Wrench ft_in_current_frame;// Move wrench into an eigen for better math
+Eigen::VectorXd wrench_with_respect_to_current(6);
 
 std_msgs::Int8 freeze_mode_status;
 bool freeze_mode; // maybe don't define it as having a starting value? 
@@ -49,6 +50,13 @@ void interaction_frame_callback(const geometry_msgs::PoseStamped& interaction_fr
 }
 void ft_callback(const geometry_msgs::Wrench& ft_values) {
     ft_in_current_frame = ft_values;
+
+    wrench_with_respect_to_current(0) = ft_in_current_frame.force.x;
+    wrench_with_respect_to_current(1) = ft_in_current_frame.force.y;
+    wrench_with_respect_to_current(2) = ft_in_current_frame.force.z;
+    wrench_with_respect_to_current(3) = ft_in_current_frame.torque.x;
+    wrench_with_respect_to_current(4) = ft_in_current_frame.torque.y;
+    wrench_with_respect_to_current(5) = ft_in_current_frame.torque.z;
 }
 void freeze_status_callback(const std_msgs::Int8& freeze_status_msg) {
     freeze_updated = true;
@@ -64,10 +72,10 @@ Eigen::Matrix3d rotation_matrix_from_vector_of_angles(Eigen::Vector3d angle_vect
 	double angle = angle_vector.norm(); // Calculate the length of the vector (the angle)
     // cout<<"Angle: "<<angle<<endl;
     if(angle == 0 || angle == -0){
-        rotation_matrix_from_vector_of_angles<<1,0,0,0,1,0,0,0,1;
+        rotation_matrix_from_vector_of_angles.setIdentity();
         return rotation_matrix_from_vector_of_angles;
     }
-	Eigen::Vector3d axis = angle_vector / angle; // Divide out this length to get us the unit length vector for the axis of rotation
+	Eigen::Vector3d axis = angle_vector.normalized(); // Divide out this length to get us the unit length vector for the axis of rotation
 	Eigen::AngleAxisd angle_axis(angle, axis);
 	rotation_matrix_from_vector_of_angles = angle_axis.toRotationMatrix();
     // cout<<"Mat from vec: "<<endl<<rotation_matrix_from_vector_of_angles<<endl;
@@ -190,11 +198,11 @@ int main(int argc, char** argv) {
     // Define our new kmatrix to store value from the set frame service, used for the bumpless start
     irb120_accomodation_control::matrix_msg k_mat;
     // ROS_INFO("Before calling set frame service");
-    if(client_set_frame.call(set_frame_srv)){
-        k_mat = set_frame_srv.response.K_mat;
-        // cout<<set_frame_srv.response.status<<endl<<"Current frame: "<<set_frame_srv.response.updated_frame<<endl;
-        // ROS_INFO_STREAM(set_frame_srv.response.updated_frame);
+    while(!client_set_frame.call(set_frame_srv)){ //? may want to change this back 
+        naptime.sleep();
+        ros::spinOnce();
     }
+    k_mat = set_frame_srv.response.K_mat;
     // ROS_INFO("After calling set frame service");
 
     // Define our K matrix
@@ -207,68 +215,73 @@ int main(int argc, char** argv) {
     k_rot(2) = k_mat.rot_mat.z;
     // cout<<"K mat"<<endl<<k_mat<<endl;
 
-    //? Do we want a check for whether the current frame was set properly, how do we want the RWE to place the attractor? 
-    // Current functionality to be just place it in whatever frame is active, might add a check for if frame didnt set (check response.status)
-
     // Update our values (may want to spin more than once?)
     for(int i = 0; i < 10; i++){
         naptime.sleep();
         ros::spinOnce();
     }
 
+    while(wrench_with_respect_to_current(0) == 0){
+        naptime.sleep();
+        ros::spinOnce();
+    }
 
     //! Calculate the pose of the attractor based on selection matrix (input) k matrix (from service call) and wrench (subscribed)
-    //!  we want to make sure that this works
-    //TODO Code for attractor and tool pose in current_frame the bumpless attr pose calculated here
-
-    // Move wrench into an eigen for better math
-    Eigen::VectorXd wrench_with_respect_to_current(6);
-    wrench_with_respect_to_current(0) = ft_in_current_frame.force.x;
-    wrench_with_respect_to_current(1) = ft_in_current_frame.force.y;
-    wrench_with_respect_to_current(2) = ft_in_current_frame.force.z;
-    wrench_with_respect_to_current(3) = ft_in_current_frame.torque.x;
-    wrench_with_respect_to_current(4) = ft_in_current_frame.torque.y;
-    wrench_with_respect_to_current(5) = ft_in_current_frame.torque.z;
 
     // Add a check here, if selection mat norm is 0, then we just set virt attr @ pose of inter
+    if(selection_mat.norm() == 0){
+        virtual_attractor.pose = interaction_pose;
+    }
+    else{
+        //! use selection matrix to modify wrench: DOUBLE CHECK
+        Eigen::VectorXd modified_wrench = selection_mat.asDiagonal() * wrench_with_respect_to_current;
 
-    //! use selection matrix to modify wrench: DOUBLE CHECK
-    wrench_with_respect_to_current = selection_mat.asDiagonal() * wrench_with_respect_to_current;
+        cout<<"Modified Wrench: "<<endl<<modified_wrench<<endl;
 
-    // cout<<"Modified Wrench: "<<endl<<wrench_with_respect_to_current<<endl;
+        cout<<"Initial Wrench: "<<endl<<wrench_with_respect_to_current<<endl;
+        cout<<"K trans: "<<endl<<k_trans<<endl;
+        
 
-    // Define the virtual position based on the wrench on the FT sensor in the current frame, with the interaction port defined in the current frame (convert from )
-    Eigen::Vector3d bumpless_virtual_attractor_position = -(k_trans.asDiagonal().inverse() * wrench_with_respect_to_current.head(3)); 
-    // Then add this offset onto the pose of the interaction port in the current frame
-    bumpless_virtual_attractor_position(0) += interaction_pose.position.x;
-    bumpless_virtual_attractor_position(1) += interaction_pose.position.y;
-    bumpless_virtual_attractor_position(2) += interaction_pose.position.z;
+        // Define the virtual position based on the wrench on the FT sensor in the current frame, with the interaction port defined in the current frame (convert from )
+        Eigen::Vector3d bumpless_virtual_attractor_position = -(k_trans.asDiagonal().inverse() * modified_wrench.head(3)); 
+
+        cout<<"Attractor offset: "<<bumpless_virtual_attractor_position<<endl;
+        // Then add this offset onto the pose of the interaction port in the current frame
+        bumpless_virtual_attractor_position(0) += interaction_pose.position.x;
+        bumpless_virtual_attractor_position(1) += interaction_pose.position.y;
+        bumpless_virtual_attractor_position(2) += interaction_pose.position.z;
+
+        cout<<"Attractor final position: "<<bumpless_virtual_attractor_position<<endl;
+        cout<<"Interaction port position: "<<interaction_pose.position<<endl;
 
 
-    // Calculate the orientation of the attractor based on the felt wrench, and then add on the orientation of the ft sensor
-    // We get the offset of the attractor required, and then we can conver it to a rotation matrix, and then add that rotation on to the current orientation of the IP in the current frame
-    Eigen::Vector3d bumpless_virtual_attractor_angles = -(k_rot.asDiagonal().inverse() * wrench_with_respect_to_current.tail(3));
-    // cout<<"Vector of angles: "<<endl<<bumpless_virtual_attractor_angles<<endl;
-    /// Define rotation matrix of the interaction port 
-    // cout<<"Pose of interaction port: "<<endl<<interaction_pose<<endl;
-    Eigen::Matrix3d interaction_rot = Eigen::Quaterniond(interaction_pose.orientation.w,interaction_pose.orientation.x,interaction_pose.orientation.y,interaction_pose.orientation.z).toRotationMatrix();
-    // cout<<"Rot mat of interaction port"<<endl<<interaction_rot<<endl;
-    // Convert bumpless attr to rot matrix (define a func here, vec of angles to AA, then AA to rot)
-    Eigen::Matrix3d virtual_attractor_rotation_matrix = interaction_rot * rotation_matrix_from_vector_of_angles(bumpless_virtual_attractor_angles); //! not done yet
-    // Take this rot mat, and then post multiply it to the current ft rotation matrix in the appropriate frame (IP, maybe define a new Affine for it?)
-    // cout<<"Rot mat of virt attr"<<virtual_attractor_rotation_matrix<<endl;
-    //! change to be interaction port
-    // Put the virtual attractor at the end effector
-    // virtual_attractor.pose = current_pose; // If we are using the tooltip
-    virtual_attractor.pose.position.x = bumpless_virtual_attractor_position(0);
-    virtual_attractor.pose.position.y = bumpless_virtual_attractor_position(1);
-    virtual_attractor.pose.position.z = bumpless_virtual_attractor_position(2);
-    Eigen::Quaterniond virtual_quat(virtual_attractor_rotation_matrix); //! Does this work
-    // cout<<"Quat of virt attr"<<virtual_quat<<endl;
-    virtual_attractor.pose.orientation.w = virtual_quat.w();
-    virtual_attractor.pose.orientation.x = virtual_quat.x();
-    virtual_attractor.pose.orientation.y = virtual_quat.y();
-    virtual_attractor.pose.orientation.z = virtual_quat.z();
+        // Calculate the orientation of the attractor based on the felt wrench, and then add on the orientation of the ft sensor
+        // We get the offset of the attractor required, and then we can conver it to a rotation matrix, and then add that rotation on to the current orientation of the IP in the current frame
+        Eigen::Vector3d bumpless_virtual_attractor_angles = -(k_rot.asDiagonal().inverse() * modified_wrench.tail(3));
+        // cout<<"Vector of angles: "<<endl<<bumpless_virtual_attractor_angles<<endl;
+        /// Define rotation matrix of the interaction port 
+        // cout<<"Pose of interaction port: "<<endl<<interaction_pose<<endl;
+        Eigen::Matrix3d interaction_rot = Eigen::Quaterniond(interaction_pose.orientation.w,interaction_pose.orientation.x,interaction_pose.orientation.y,interaction_pose.orientation.z).toRotationMatrix();
+        // cout<<"Rot mat of interaction port"<<endl<<interaction_rot<<endl;
+        // Convert bumpless attr to rot matrix (define a func here, vec of angles to AA, then AA to rot)
+        Eigen::Matrix3d virtual_attractor_rotation_matrix = interaction_rot * rotation_matrix_from_vector_of_angles(bumpless_virtual_attractor_angles); //! not done yet
+        // Take this rot mat, and then post multiply it to the current ft rotation matrix in the appropriate frame (IP, maybe define a new Affine for it?)
+        // cout<<"Rot mat of virt attr"<<virtual_attractor_rotation_matrix<<endl;
+        //! change to be interaction port
+        // Put the virtual attractor at the end effector
+        // virtual_attractor.pose = current_pose; // If we are using the tooltip
+        virtual_attractor.pose.position.x = bumpless_virtual_attractor_position(0);
+        virtual_attractor.pose.position.y = bumpless_virtual_attractor_position(1);
+        virtual_attractor.pose.position.z = bumpless_virtual_attractor_position(2);
+        Eigen::Quaterniond virtual_quat(virtual_attractor_rotation_matrix); //! Does this work
+        // cout<<"Quat of virt attr"<<virtual_quat<<endl;
+        virtual_attractor.pose.orientation.w = virtual_quat.w();
+        virtual_attractor.pose.orientation.x = virtual_quat.x();
+        virtual_attractor.pose.orientation.y = virtual_quat.y();
+        virtual_attractor.pose.orientation.z = virtual_quat.z();
+
+    }
+
 
     // virtual_attractor.pose = interaction_pose; // if we are using the interaction port 
     virtual_attractor.header.frame_id = "current_frame";
@@ -348,6 +361,7 @@ int main(int argc, char** argv) {
     //     ROS_ERROR("Failed to call service status_service");
     // }
 
+    cout<<"Final Wrench: "<<endl<<wrench_with_respect_to_current<<endl;
     
     // End of program
     cout<<"Done"<<endl;

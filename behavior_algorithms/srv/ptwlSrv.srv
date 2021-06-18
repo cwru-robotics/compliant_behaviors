@@ -1,0 +1,10 @@
+float64 trans_x#=0.0
+float64 trans_y#=0.0
+float64 trans_z#=0.0
+float64 rot_x#=0.0
+float64 rot_y#=0.0
+float64 rot_z#=0.0
+bool bumpless#=false
+string param_set#="Tool"
+---
+bool success

@@ -160,7 +160,7 @@ void call_ptwl_fnc(double trans_x, double trans_y, double trans_z, double rot_x,
 void call_rwe_fnc(int trans_x=0, int trans_y=0, int trans_z=0, int rot_x=0, int rot_y=0, int rot_z=0)
 {
     string cmd = "rosrun behavior_algorithms force_moment_accommodation_interaction_port _trans_x:=" + to_string(trans_x) + " _trans_y:=" + to_string(trans_y) + " _trans_z:=" + to_string(trans_z) +
-                 " _rot_x:=" + to_string(rot_x) + " _rot_y:=" + to_string(rot_y) + " _rot_z:=" + to_string(rot_z) + " _param_set:=Stowage _run_time:=10";
+                 " _rot_x:=" + to_string(rot_x) + " _rot_y:=" + to_string(rot_y) + " _rot_z:=" + to_string(rot_z) + " _param_set:=Stowage _run_time:=5";
     system(cmd.c_str());
 }
 void call_joint_fnc(double joint_1 = 0, double joint_2 = -48, double joint_3 = 16, double joint_4 = 0, double joint_5 = 30, double joint_6 = 0)
@@ -194,7 +194,7 @@ int main(int argc, char **argv)
     Torque Limit: torque limit to use an RWE or pull back
     */
     double upper_stop_z_height = -0.01837, lower_stop_z_height = 0, approach_z_height = -0.0551, ROTATE_ANGLE = -0.136;
-    double contact_force_threshold = 10, contact_torque_threshold = 1, force_limit = 25, torque_limit = 2.5;
+    double contact_force_threshold = 10, contact_torque_threshold = .5, force_limit = 25, torque_limit = 2.5;
 
     int state = 0;
     double dt_ = 0.01;
@@ -265,6 +265,7 @@ int main(int argc, char **argv)
 
                 //! Change to a cartesian move in a known manner, maybe want to add a condition that will not run joint command if we were kicked back here? or just transition to a different pose
                 call_joint_fnc(); //TODO update the approach pose joint angles
+                restart_attempts++;
             }
 
             break;

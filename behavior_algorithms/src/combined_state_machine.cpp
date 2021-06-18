@@ -99,7 +99,7 @@ bool orient_check(Eigen::Matrix3d target_orient, double tol_x = 0.1, double tol_
 
 // Maybe not needed
 // Require an input for the position to check against, with some tolerances that can be adjusted
-bool pos_check(Eigen::Vector3d target_pos, double tol_x = 0.002, double tol_y = 0.002, double tol_z = 0.002)
+bool pos_check(Eigen::Vector3d target_pos, double tol_x = 0.003, double tol_y = 0.003, double tol_z = 0.003)
 {
     Eigen::Vector3d curr_position = curr_affine.translation();
     return (abs(curr_position.x() - target_pos.x()) < tol_x) & (abs(curr_position.y() - target_pos.y()) < tol_y) && (abs(curr_position.z() - target_pos.z()) < tol_z);
@@ -179,7 +179,7 @@ void call_joint_fnc(double joint_1 = 0, double joint_2 = -48, double joint_3 = 1
 
 bool stowage_state_machine(){
     double upper_stop_z_height = -0.01837, lower_stop_z_height = 0, approach_z_height = -0.0551, ROTATE_ANGLE = -0.136;
-    double contact_force_threshold = 15, contact_torque_threshold = 1, force_limit = 25, torque_limit = 2.5;
+    double contact_force_threshold = 15, contact_torque_threshold = .5, force_limit = 25, torque_limit = 2.5;
 
     int state = 0;
     double dt_ = 0.01;
@@ -247,7 +247,8 @@ bool stowage_state_machine(){
                 // cartesian move to approach pose?
 
                 //! Change to a cartesian move in a known manner, maybe want to add a condition that will not run joint command if we were kicked back here? or just transition to a different pose
-                call_joint_fnc(); //TODO update the approach pose joint angles, or loop forever here
+                call_joint_fnc(0, -57, 25, 0, 30, 0); //TODO update the approach pose joint angles, or loop forever here
+                restart_attempts++;
             }
 
             break;
@@ -479,7 +480,7 @@ bool stowage_state_machine(){
 
 bool retrieval_state_machine(){
     double upper_stop_z_height = -0.01837, lower_stop_z_height = 0, approach_z_height = -0.0551, ROTATE_ANGLE = -0.136;
-    double contact_force_threshold = 10, contact_torque_threshold = 1, force_limit = 25, torque_limit = 2.5;
+    double contact_force_threshold = 10, contact_torque_threshold = .5, force_limit = 25, torque_limit = 2.5;
 
     int state = 0;
     double dt_ = 0.01;
@@ -547,7 +548,8 @@ bool retrieval_state_machine(){
                 // cartesian move to approach pose?
 
                 //! Change to a cartesian move in a known manner, maybe want to add a condition that will not run joint command if we were kicked back here? or just transition to a different pose
-                call_joint_fnc(); //TODO update the approach pose joint angles
+                call_joint_fnc(0, -57, 25, 0, 30, 0); //TODO update the approach pose joint angles
+                restart_attempts++;
             }
 
             break;
@@ -758,10 +760,13 @@ int main(int argc, char **argv)
 
     while (ros::ok() && state_machine_OK && loop_count < max_loops)
     {
-        ROS_INFO("Current Number of loops: %i",loop_count);
+        ROS_WARN("Current Number of loops: %i",loop_count);
+        ROS_WARN("Total Number of successful retrievals: %i",successful_retrieval);
         if(retrieval_state_machine()){
             successful_retrieval++;
 
+            ROS_WARN("Current Number of loops: %i",loop_count);
+            ROS_WARN("Total Number of successful stows: %i",successful_stow);
             if(stowage_state_machine()){
                 successful_stow++;
             }
@@ -777,9 +782,9 @@ int main(int argc, char **argv)
         }
         loop_count++;
     }
-    ROS_INFO("Total Number of loops: %i",loop_count);
-    ROS_INFO("Total Number of successful stows: %i",successful_stow);
-    ROS_INFO("Total Number of successful retrievals: %i",successful_retrieval);
+    ROS_ERROR("Total Number of loops: %i",loop_count);
+    ROS_ERROR("Total Number of successful stows: %i",successful_stow);
+    ROS_ERROR("Total Number of successful retrievals: %i",successful_retrieval);
 
 
 }

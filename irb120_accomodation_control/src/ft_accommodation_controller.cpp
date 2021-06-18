@@ -56,7 +56,6 @@ Eigen::VectorXd virtual_attractor_pos(3);
 Eigen::Matrix3d virtual_attractor_rotation_matrix;
 Eigen::Quaterniond virt_quat;
 
-bool virtual_attractor_established = false; 
 bool jnt_state_update = false;
 
 // initialize our K matrix, and our current frame
@@ -140,7 +139,7 @@ Eigen::Vector3d decompose_rot_mat(Eigen::Matrix3d rot_mat) {
 // MATH: Function takes two rotation matricies and ouputs the angular displacement between them in a vector of angles
 Eigen::Vector3d delta_phi_from_rots(Eigen::Matrix3d source_rot, Eigen::Matrix3d dest_rot) {
 	// R_reqd = R_rob.inv * R_des
-	Eigen::Matrix3d desired_rotation =  dest_rot * source_rot.inverse();
+	Eigen::Matrix3d desired_rotation = source_rot.inverse() * dest_rot ; // dest_rot * source_rot.inverse(); // curr^R_attr * curr^R_ft ^-1
 	Eigen::AngleAxisd desired_ang_ax(desired_rotation);
 	Eigen::Vector3d delta_phi;
 	Eigen::Vector3d axis = desired_ang_ax.axis();
@@ -204,32 +203,12 @@ Eigen::Matrix3d rotation_matrix_from_vector_of_angles(Eigen::Vector3d angle_vect
 void forceTorqueSensorCallback(const geometry_msgs::WrenchStamped& ft_sensor) {
 	// Subscribed to "robotiq_ft_wrench"
 	// Round our force values
-	wrench_body_coords_(0) = std::round(ft_sensor.wrench.force.x * 10) / 10;
-	wrench_body_coords_(1) = std::round(ft_sensor.wrench.force.y * 10) / 10;
-	wrench_body_coords_(2) = std::round(ft_sensor.wrench.force.z * 10) / 10;
-	wrench_body_coords_(3) = std::round(ft_sensor.wrench.torque.x * 10) / 10;
-	wrench_body_coords_(4) = std::round(ft_sensor.wrench.torque.y * 10) / 10;
-	wrench_body_coords_(5) = std::round(ft_sensor.wrench.torque.z * 10) / 10;
-
-	// Optional low pass filter starts here (it's a moving average)
-	// This was removed, but kept in case anyone would like to use this, we chose not to
-	/* 
-	if (filter_counter > 9) { //if last 10 readings are recorded
-		//low pass filter
-		//Block of size (p,q), starting at (i,j); so block(i,j,p,q)
-		wrench_filter.block(1,0,9,6) = wrench_filter.block(0,0,9,6); //move everything down
-		wrench_filter.block(0,0,1,6) = wrench_body_coords_.transpose(); // top row is the new coordinates
-		wrench_body_coords_ = wrench_filter.colwise().sum(); // sums up the columns into an array
-		wrench_body_coords_ /= 10; // now we have an average
-	}
-	else {
-		filter_counter++;
-		wrench_filter.block(1,0,9,6) = wrench_filter.block(0,0,9,6);
-		wrench_filter.block(0,0,1,6) = wrench_body_coords_.transpose(); 
-		// and then wrench_body_coords_ is just exactly what the sensor reads
-	}
-	*/
-	// low pass filter ends here
+	wrench_body_coords_(0) = std::round(ft_sensor.wrench.force.x * 100) / 100;
+	wrench_body_coords_(1) = std::round(ft_sensor.wrench.force.y * 100) / 100;
+	wrench_body_coords_(2) = std::round(ft_sensor.wrench.force.z * 100) / 100;
+	wrench_body_coords_(3) = std::round(ft_sensor.wrench.torque.x * 100) / 100;
+	wrench_body_coords_(4) = std::round(ft_sensor.wrench.torque.y * 100) / 100;
+	wrench_body_coords_(5) = std::round(ft_sensor.wrench.torque.z * 100) / 100;
 
 }
 
@@ -241,7 +220,6 @@ void jointStateCallback(const sensor_msgs::JointState& joint_state) {
 
 // ROS: Callback funtion receives the virtual attractor pose from "virtual_attractor" topic
 void virtualAttractorCallback(const geometry_msgs::PoseStamped& des_pose) {
-	virtual_attractor_established = true;
 	virtual_attractor_pos(0) = des_pose.pose.position.x;
 	virtual_attractor_pos(1) = des_pose.pose.position.y;
 	virtual_attractor_pos(2) = des_pose.pose.position.z;
@@ -262,7 +240,7 @@ bool freezeServiceCallback(irb120_accomodation_control::freeze_serviceRequest &r
 	if (freeze_mode) freeze_mode_status.data = 1;
 	else freeze_mode_status.data = 0;
 
-	// Set frozen joint states to last desired joing state
+	// Set frozen joint states to last desired joint state
 	frozen_joint_states_(0) = last_desired_joint_state_.position[0];
 	frozen_joint_states_(1) = last_desired_joint_state_.position[1];
 	frozen_joint_states_(2) = last_desired_joint_state_.position[2];
@@ -450,6 +428,8 @@ bool setCurrentFrameServiceCallback(irb120_accomodation_control::set_current_fra
 	rot_vec.z = k_rot.z();
 	response.K_mat.trans_mat = trans_vec;
 	response.K_mat.rot_mat = rot_vec;
+
+	// maybe want to add a sleep here, maybe won't solve root issue though
 	
 	if(success){
 		cout<< "Success"<<endl<<"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"<<endl;
@@ -525,7 +505,7 @@ int main(int argc, char **argv) {
 	Eigen::VectorXd sensor_pose(6);
 	Eigen::VectorXd wrench_with_respect_to_robot(6);
 	Eigen::VectorXd wrench_with_respect_to_current(6);
-	Eigen::VectorXd virtual_force(6);
+	Eigen::VectorXd virtual_wrench(6);
 	Eigen::VectorXd desired_joint_velocity = Eigen::VectorXd::Zero(6);
 	Eigen::VectorXd desired_cartesian_acceleration(6);
 	Eigen::VectorXd desired_twist = Eigen::VectorXd::Zero(6);
@@ -583,7 +563,7 @@ int main(int argc, char **argv) {
 	Eigen::Affine3d sensor_with_respect_to_flange;
 	Eigen::Matrix3d sensor_rotation;
 	Eigen::Vector3d sensor_origin;
-	sensor_origin<<0,0,0.08;
+	sensor_origin<<0,0,0; //! set the z translation of the sensor to 0 (as it is likely included within the irb120_kinematics.h file).08; // may not need or want this, as it is accounted for in the FK/IK calc 
 	sensor_rotation<<0,-1,0,
 				1,0,0,
 				0,0,1;
@@ -613,8 +593,9 @@ int main(int argc, char **argv) {
 	sensor_with_respect_to_current = task_frame_with_respect_to_robot_.inverse() * sensor_with_respect_to_robot; // check if this math is correct
 
 	// Define default/starting transform for the tool stowage frame, set from values obtained with a working task frame
-	stowage_frame_with_respect_to_robot_.translation() = Eigen::Vector3d(0.305318775107,0.00417424672753,0.702955076039);
-	Eigen::Quaterniond rot(0.494044627121,0.484363114784,0.513944396825,0.507122703516);
+	stowage_frame_with_respect_to_robot_.translation() = Eigen::Vector3d(0.226166853926, 0.00286010211975, 0.696043850471);
+
+	Eigen::Quaterniond rot(0.491345563255, 0.490632869071, 0.509193988227, 0.508508021186); 
 	stowage_frame_with_respect_to_robot_.linear() = rot.toRotationMatrix();
 
 
@@ -824,9 +805,7 @@ int main(int argc, char **argv) {
 			// Define the virtual position based on the wrench on the FT sensor in the current frame, with the interaction port defined in the current frame (convert from )
 			bumpless_virtual_attractor_position = -(k_trans.asDiagonal().inverse() * wrench_with_respect_to_current.head(3)); 
 			// Then add this offset onto the current pose of the interaction port
-			bumpless_virtual_attractor_position(0) += interaction_port_frame_pose_stamped.pose.position.x;
-			bumpless_virtual_attractor_position(1) += interaction_port_frame_pose_stamped.pose.position.y;
-			bumpless_virtual_attractor_position(2) += interaction_port_frame_pose_stamped.pose.position.z;
+			bumpless_virtual_attractor_position = bumpless_virtual_attractor_position + sensor_with_respect_to_current.translation();
 
 			// Update virtual attractor position to bumpless virtual attractor position
 			virtual_attractor_pos(0) = bumpless_virtual_attractor_position(0);
@@ -847,26 +826,6 @@ int main(int argc, char **argv) {
 			// Get the angle axis representation of the ft, multiply the axis by the angle
 
 
-			//! !!!!!!!!!!!!!!!!!
-			//! OLD CONTROL LAW
-			//! !!!!!!!!!!!!!!!!!
-			// // Find bumpless virtual attractor position: the negative force devided by the translational spring constant, plus the end effector position
-			// bumpless_virtual_attractor_position = -wrench_with_respect_to_robot.head(3) / K_virtual_translational + sensor_with_respect_to_robot.translation();
-			// // Update virtual attractor position to bumpless virtual attractor position
-			// virtual_attractor_pos(0) = bumpless_virtual_attractor_position(0);
-			// virtual_attractor_pos(1) = bumpless_virtual_attractor_position(1);
-			// virtual_attractor_pos(2) = bumpless_virtual_attractor_position(2);
-			// // Find bumpless virtual attractor angles: (the negative torque divided by the anglular spring constant) plus (the angle of the tool with respect to the robot)
-			// bumpless_virtual_attractor_angles(0) =  -wrench_with_respect_to_robot(3) / K_virtual_angular + decompose_rot_mat(sensor_with_respect_to_robot.linear())(0);
-			// bumpless_virtual_attractor_angles(1) =  -wrench_with_respect_to_robot(4) / K_virtual_angular + decompose_rot_mat(sensor_with_respect_to_robot.linear())(1);
-			// bumpless_virtual_attractor_angles(2) =  -wrench_with_respect_to_robot(5) / K_virtual_angular + decompose_rot_mat(sensor_with_respect_to_robot.linear())(2);
-			// // Update the virtual attractor rotation matrix
-			// virtual_attractor_rotation_matrix = rotation_matrix_from_euler_angles(bumpless_virtual_attractor_angles);
-
-			// //! Define our virtual wrench, we just swap out the K_virts with the matrices as diagonals (or the box), and use the variables that are defined in the current frame (virt attr and IP)
-			// // Calculate the virtual forces
-			// virtual_force.head(3) = K_virtual_translational * (virtual_attractor_pos - sensor_with_respect_to_robot.translation());
-			// virtual_force.tail(3) = K_virtual_angular * (delta_phi_from_rots(sensor_with_respect_to_robot.linear(), virtual_attractor_rotation_matrix));
 
 			// Output 
 			cout<<"Bumpless attractor used"<<endl;
@@ -876,44 +835,21 @@ int main(int argc, char **argv) {
 			cout<<bumpless_virtual_attractor_position<<endl;
 		}
 
-		// If the controller has not just started, use the normal virtual attractor
-		else {
-			// If we have established a virtual attractor
-			if(virtual_attractor_established) {
-				//! Define our virtual wrench, we just swap out the K_virts with the matrices as diagonals (or the box), and use the variables that are defined in the current frame (virt attr and IP)
-				// Calculate the virtual forces
-				// virtual_force.head(3) = K_virtual_translational * (virtual_attractor_pos - sensor_with_respect_to_robot.translation());
-				// virtual_force.tail(3) = K_virtual_angular * (delta_phi_from_rots(sensor_with_respect_to_robot.linear(), virtual_attractor_rotation_matrix));
-				// Output
-				cout<<"virtual attractor pose"<<endl;
-				cout<<virtual_attractor_pos<<endl;
-				cout<<decompose_rot_mat(virtual_attractor_rotation_matrix)<<endl;
-			}
-			// If we haven't established a virtual attractor
-			else{
-				// Set virtual force to 0
-				virtual_force<<0,0,0,0,0,0;
-				cout<<"No virtual attractor command received"<<endl;	
-			}
-		}
+		virtual_wrench.head(3) = K_virtual_translational * (virtual_attractor_pos - sensor_with_respect_to_current.translation());
+		virtual_wrench.tail(3) = K_virtual_angular * (delta_phi_from_rots(sensor_with_respect_to_current.linear(), virtual_attractor_rotation_matrix));
+		// if(!freeze_mode){ //! do we want this attractor established?
+		// 	// calculate the virtual wrench 
+		// }else{
+		// 	// in a position hold
+		// 	virtual_wrench<<0,0,0,0,0,0;
+		// }
 
-		cout<<"virtual force: "<<endl<<virtual_force<<endl;
+		cout<<"virtual wrench: "<<endl<<virtual_wrench<<endl;
 		cout<<"current frame: "<<current_frame<<endl;
 
-		//! new changes, calculate the virtual wrench out here
-		if(virtual_attractor_established && !freeze_mode){
-			// calculate the virtual force 
-			virtual_force.head(3) = K_virtual_translational * (virtual_attractor_pos - sensor_with_respect_to_current.translation());
-			virtual_force.tail(3) = K_virtual_angular * (delta_phi_from_rots(sensor_with_respect_to_current.linear(), virtual_attractor_rotation_matrix));
-		}else{
-			// in a position hold
-			virtual_force<<0,0,0,0,0,0;
-		}
-
-		// CONTROL LAW BEGIN
-		//! Remove cartesian acceleration, just do:
+		//! CONTROL LAW BEGIN
 		// Combine the virtual and measured wrench in current frame
-		Eigen::VectorXd combined_wrench = virtual_force + wrench_with_respect_to_current;
+		Eigen::VectorXd combined_wrench = virtual_wrench + wrench_with_respect_to_current;
 		// Calculate our desired twist in current frame through accommodation control
 		Eigen::VectorXd desired_twist_in_current_frame = b_des_inv * combined_wrench;
 		// Transform the twist into the base frame for the jacobian
@@ -929,21 +865,6 @@ int main(int argc, char **argv) {
 		cout<<"Desired twist: "<<endl<<desired_twist<<endl;
 		cout<<"Combined Wrench: "<<endl<<combined_wrench<<endl;
 
-		// Calculate the desired twists with the two damping gains
-		// desired_twist_with_gain.head(3) = -B_virtual_translational * desired_twist.head(3);
-		// desired_twist_with_gain.tail(3) = -B_virtual_rotational * desired_twist.tail(3);
-		// // Calculate the desired cartesian accelleration
-		// desired_cartesian_acceleration = inertia_matrix_inverted*(desired_twist_with_gain + wrench_with_respect_to_robot + virtual_force);
-		// CONTROL LAW END
-
-		// // Calculate the desired twist by integrating the acceleration
-		// if(!freeze_mode) desired_twist += desired_cartesian_acceleration*dt_;
-		// // Zero the twist if freeze/latched mode is on
-		// else {
-		// 	desired_twist<<0,0,0,0,0,0;
-		// 	// Output
-		// 	cout<<"freeze mode on"<<endl;
-		// }
 
 		// Calculate the desired joint velocities from the desired twist
 		// TODO CHANGE FOR ROBOT AGNOSTIC
